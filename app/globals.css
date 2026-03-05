@@ -18,6 +18,12 @@
     --foreground: #ededed;
   }
 }
+@font-face {
+  font-family: 'PWN-Pawana';
+  src: url('/fonts/PWN-Pawana.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
 
 body {
   background: var(--background);
