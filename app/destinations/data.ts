@@ -15,10 +15,10 @@ export const destinations: Destination[] = [
   {
     slug: "galle",
     name: "Galle",
-    sinhala: "ගාල්ල",
+    sinhala: ".d,a,",
     country: "Sri Lanka",
     tagline: "Where History Meets the Sea",
-    heroImage: "/images/dest-1.webp",
+    heroImage: "/images/galle.webp",
     about: "Galle is a city where colonial history breathes alongside tropical beauty. Walk the ancient Dutch fort walls as the Indian Ocean stretches endlessly before you, discover boutique shops and hidden cafes within centuries-old streets, and let the languid pace of the south slow you down.",
     activities: [
       { title: "Fort Galle", description: "Wander the UNESCO-listed Dutch fort at golden hour when the walls glow amber.", image: "/images/galle-act-1.webp" },
@@ -35,7 +35,7 @@ export const destinations: Destination[] = [
   {
     slug: "ella",
     name: "Ella",
-    sinhala: "එල්ල",
+    sinhala: "we,a,",
     country: "The Hill Country",
     tagline: "Lost in the Mist of the Mountains",
     heroImage: "/images/dest-2.webp",
@@ -55,7 +55,7 @@ export const destinations: Destination[] = [
   {
     slug: "unawatuna",
     name: "Unawatuna",
-    sinhala: "උණවටුන",
+    sinhala: "WKjgqK",
     country: "Down South",
     tagline: "Where the Ocean Calls You Home",
     heroImage: "/images/dest-3.webp",
