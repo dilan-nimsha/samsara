@@ -21,7 +21,7 @@ export const destinations: Destination[] = [
     heroImage: "/images/galle.webp",
     about: "Galle is a city where colonial history breathes alongside tropical beauty. Walk the ancient Dutch fort walls as the Indian Ocean stretches endlessly before you, discover boutique shops and hidden cafes within centuries-old streets, and let the languid pace of the south slow you down.",
     activities: [
-      { title: "Fort Galle", description: "Wander the UNESCO-listed Dutch fort at golden hour when the walls glow amber.", image: "/images/galle-act-1.webp" },
+      { title: "The Art of Making Something Yours", description: "Wander the UNESCO-listed Dutch fort at golden hour when the walls glow amber.", image: "/images/galle-act-1.webp" },
       { title: "Whale Watching", description: "Sail into the deep blue to witness blue whales — the largest creatures on Earth.", image: "/images/galle-act-2.webp" },
       { title: "Sea Turtle Nesting", description: "Visit nesting beaches at dawn and witness ancient sea turtles return to shore.", image: "/images/galle-act-3.webp" },
     ],
@@ -75,7 +75,7 @@ export const destinations: Destination[] = [
   {
     slug: "sigiriya",
     name: "Sigiriya",
-    sinhala: "සිගිරිය",
+    sinhala: "",
     country: "The Hill Country",
     tagline: "Rise Above the Ancient World",
     heroImage: "/images/dest-4.webp",
@@ -95,7 +95,7 @@ export const destinations: Destination[] = [
   {
     slug: "pollonnaruwa",
     name: "Pollonnaruwa",
-    sinhala: "පොළොන්නරුව",
+    sinhala: "fmdf,dkakrqj",
     country: "The Ancient Kingdoms",
     tagline: "Walk Through a Forgotten Empire",
     heroImage: "/images/dest-5.webp",

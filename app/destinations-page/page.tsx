@@ -305,6 +305,7 @@ export default function DestinationsPage() {
         <ul className="nav-links">
           <li><a href="/destinations-page">Destinations</a></li>
           <li><a href="#explore">Experiences</a></li>
+          <li><a href="/feeling-engine">Feelings Engine</a></li>
           <li><a href="#about">About</a></li>
         </ul>
         <button className="nav-cta">Enquire Now</button>
