@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { getDestination } from "../data";
 
 const NAV_SECTIONS = [
-  { id: "overview",     label: "Overview" },
-  { id: "itineraries",  label: "Itineraries" },
-  { id: "see-do",       label: "See & Do" },
-  { id: "hotels",       label: "Hotels" },
- 
+  { id: "overview",    label: "Overview" },
+  { id: "itineraries", label: "Itineraries" },
+  { id: "see-do",      label: "See & Do" },
+  { id: "hotels",      label: "Hotels" },
 ];
 
 export default function DestinationPage() {
@@ -18,6 +17,10 @@ export default function DestinationPage() {
   const dest = getDestination(slug);
   const [scrollY, setScrollY] = useState(0);
   const [activeSection, setActiveSection] = useState("overview");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,7 +29,7 @@ export default function DestinationPage() {
         const el = document.getElementById(id);
         return { id, top: el ? el.getBoundingClientRect().top : Infinity };
       });
-      const current = offsets.filter(o => o.top <= 120).pop();
+      const current = offsets.filter((o) => o.top <= 120).pop();
       if (current) setActiveSection(current.id);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -38,6 +41,24 @@ export default function DestinationPage() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
+  const onMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    startX.current = e.pageX - (scrollRef.current?.offsetLeft || 0);
+    scrollLeft.current = scrollRef.current?.scrollLeft || 0;
+    if (scrollRef.current) scrollRef.current.style.cursor = "grabbing";
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - (scrollRef.current.offsetLeft || 0);
+    const walk = (x - startX.current) * 1.5;
+    scrollRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const onMouseUp = () => {
+    isDragging.current = false;
+    if (scrollRef.current) scrollRef.current.style.cursor = "grab";
+  };
+
   if (!dest) {
     return (
       <div style={{ background: "#080808", color: "#fff", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "serif", fontSize: "2rem" }}>
@@ -45,6 +66,14 @@ export default function DestinationPage() {
       </div>
     );
   }
+
+  const trips = [
+    { nights: "7 Nights", title: `${dest.name}: A Weekend Escape`, image: dest.gallery[0] },
+    { nights: "10 Nights", title: `${dest.name}: The Deep Dive`, image: dest.gallery[1] },
+    { nights: "8 Nights", title: `A Journey into ${dest.name}`, image: dest.gallery[2] },
+    { nights: "12 Nights", title: `${dest.name}: A Spiritual Adventure`, image: dest.gallery[0] },
+    { nights: "Custom", title: `Create Your Own ${dest.name} Journey`, image: dest.gallery[1] },
+  ];
 
   return (
     <>
@@ -234,136 +263,195 @@ export default function DestinationPage() {
         .enquire-btn:hover { background: var(--gold-light); }
 
         /* ITINERARIES */
-        .itineraries { padding: 7rem 5rem; background: var(--dark-2); }
-        .itinerary-cards {
-          display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem;
+        .itineraries {
+          padding: 0;
+          background: var(--dark-2);
+          overflow: hidden;
         }
-        .itinerary-card {
-          position: relative; overflow: hidden; cursor: pointer;
-          aspect-ratio: 2 / 3;
-          display: flex; flex-direction: column; justify-content: flex-end;
+        .itin-layout {
+          display: grid;
+          grid-template-columns: 380px 1fr;
+          min-height: 600px;
         }
-        .itin-bg {
+        .itin-left {
+          padding: 5rem 3rem 5rem 5rem;
+          display: flex; flex-direction: column;
+          justify-content: center;
+          background: var(--dark-2);
+          position: relative; z-index: 2;
+          border-right: 1px solid rgba(201,168,76,0.08);
+        }
+        .itin-left-eyebrow {
+          font-size: 0.62rem; letter-spacing: 0.4em;
+          text-transform: uppercase; color: var(--gold);
+          margin-bottom: 1.5rem;
+          display: flex; align-items: center; gap: 1rem;
+        }
+        .itin-left-eyebrow::before {
+          content: ''; width: 24px; height: 1px; background: var(--gold);
+        }
+        .itin-left-title {
+          font-family: 'Inter', sans-serif;
+          font-size: clamp(1.3rem, 2vw, 1.7rem);
+          font-weight: 600; color: var(--white);
+          text-transform: uppercase; letter-spacing: 0.06em;
+          line-height: 1.3; margin-bottom: 1.5rem;
+        }
+        .itin-left-desc {
+          font-size: 0.85rem; line-height: 1.9;
+          color: var(--cream-dim); margin-bottom: 2.5rem;
+        }
+        .itin-left-cta {
+          font-family: 'Inter', sans-serif;
+          font-size: 0.68rem; letter-spacing: 0.22em;
+          text-transform: uppercase;
+          background: var(--gold); color: var(--dark);
+          border: none; padding: 0.9rem 2rem;
+          cursor: pointer; transition: background 0.3s;
+          width: fit-content;
+        }
+        .itin-left-cta:hover { background: var(--gold-light); }
+        .itin-scroll-wrap {
+          overflow-x: auto; overflow-y: hidden;
+          cursor: grab; scrollbar-width: none; user-select: none;
+        }
+        .itin-scroll-wrap::-webkit-scrollbar { display: none; }
+        .itin-cards-row { display: flex; gap: 0; height: 600px; }
+        .itin-card-v2 { position: relative; flex: 0 0 300px; overflow: hidden; cursor: pointer; }
+        .itin-card-bg {
           position: absolute; inset: 0;
           background-size: cover; background-position: center;
           transition: transform 0.7s ease;
         }
-        .itinerary-card:hover .itin-bg { transform: scale(1.05); }
-        .itin-overlay {
+        .itin-card-v2:hover .itin-card-bg { transform: scale(1.06); }
+        .itin-card-overlay {
           position: absolute; inset: 0;
-          background: linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.15) 55%, rgba(8,8,8,0.05) 100%);
+          background: linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.2) 55%, rgba(8,8,8,0.05) 100%);
+          transition: background 0.4s;
         }
-        .itin-nights {
+        .itin-card-v2:hover .itin-card-overlay {
+          background: linear-gradient(to top, rgba(8,8,8,0.96) 0%, rgba(8,8,8,0.35) 55%, rgba(8,8,8,0.1) 100%);
+        }
+        .itin-card-nights {
           position: absolute; top: 1.2rem; right: 1.2rem;
-          font-size: 0.62rem; letter-spacing: 0.25em; text-transform: uppercase;
-          color: var(--white); font-family: 'Inter', sans-serif; font-weight: 500;
+          font-size: 0.62rem; letter-spacing: 0.25em;
+          text-transform: uppercase; color: var(--white);
+          font-family: 'Inter', sans-serif; font-weight: 500; z-index: 2;
         }
-        .itin-bottom {
-          position: relative; z-index: 2; padding: 2rem;
+        .itin-card-bottom { position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 1.8rem; z-index: 2; }
+        .itin-card-title {
+          font-family: 'Inter', sans-serif;
+          font-size: 0.88rem; font-weight: 600;
+          color: var(--white); text-transform: uppercase;
+          letter-spacing: 0.05em; line-height: 1.4; margin-bottom: 1.2rem;
         }
-        .itin-title {
-          font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 600;
-          color: var(--white); text-transform: uppercase; letter-spacing: 0.05em;
-          line-height: 1.4; margin-bottom: 1.2rem;
+        .itin-card-btn {
+          display: inline-flex; align-items: center;
+          font-size: 0.65rem; letter-spacing: 0.2em;
+          text-transform: uppercase; color: var(--white);
+          border: 1px solid rgba(255,255,255,0.5);
+          padding: 0.6rem 1.2rem; background: none;
+          cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif;
         }
-        .itin-btn {
-          display: inline-flex; align-items: center; gap: 0.75rem;
-          font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
-          color: var(--white); border: 1px solid rgba(255,255,255,0.5);
-          padding: 0.6rem 1.2rem; background: none; cursor: pointer;
-          transition: all 0.3s; font-family: 'Inter', sans-serif;
-        }
-        .itin-btn:hover { border-color: var(--gold); color: var(--gold); }
-        .itin-custom-overlay {
-          background: linear-gradient(to top, rgba(8,8,8,0.75) 0%, rgba(8,8,8,0.35) 55%, rgba(8,8,8,0.2) 100%) !important;
-        }
-        .itin-custom-title {
-          font-size: 1.2rem !important;
-        }
+        .itin-card-btn:hover { border-color: var(--gold); color: var(--gold); }
 
-        /* ── SEE & DO — editorial split layout ── */
-        .see-do { padding: 0; }
-
-        .see-do-header {
-          padding: 5rem 5rem 0;
-          display: flex; flex-direction: column; align-items: center; text-align: center;
+        /* SEE & DO */
+        .see-do { padding: 0; background: var(--dark); }
+        .see-do-top {
+          padding: 3.5rem 5rem 2.5rem;
+          display: flex; flex-direction: column;
+          align-items: center; text-align: center;
+          border-bottom: 1px solid rgba(201,168,76,0.08);
         }
-
-        .see-do-split {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          min-height: 600px;
-          margin-top: 4rem;
+        .see-do-main-title {
+          font-family: 'Inter', sans-serif;
+          font-size: clamp(1.4rem, 3vw, 2rem);
+          font-weight: 700; color: var(--white);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1.2rem;
         }
-
+        .see-do-main-sub {
+          font-size: 0.78rem; letter-spacing: 0.18em;
+          text-transform: uppercase; color: var(--cream-dim); line-height: 1.8;
+        }
+        .see-do-link { color: var(--white); text-decoration: underline; text-underline-offset: 3px; transition: color 0.3s; }
+        .see-do-link:hover { color: var(--gold); }
+        .see-do-split { display: grid; grid-template-columns: 1fr 1.4fr; min-height: 420px; }
         .see-do-text {
           display: flex; flex-direction: column; justify-content: center;
-          padding: 5rem 6rem 5rem 5rem;
+          padding: 3.5rem 4rem; border-right: 1px solid rgba(201,168,76,0.08);
         }
-
-        .see-do-text .eyebrow {
-          margin-bottom: 1.2rem;
+        .see-do-inner-title {
+          font-family: 'Inter', sans-serif;
+          font-size: 1rem; font-weight: 700;
+          color: var(--white); text-transform: uppercase;
+          letter-spacing: 0.08em; margin-bottom: 1.2rem;
         }
-
-        .see-do-lead {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.5rem, 2.5vw, 2rem);
-          font-weight: 300;
-          line-height: 1.4;
-          color: var(--white);
-          margin-bottom: 1.8rem;
-        }
-
-        .see-do-lead em {
-          font-style: italic;
-          color: var(--gold-light);
-        }
-
-        .see-do-body {
-          font-size: 0.88rem;
-          line-height: 2;
-          color: var(--cream-dim);
-          margin-bottom: 1.4rem;
-        }
-
+        .see-do-body { font-size: 0.85rem; line-height: 1.9; color: var(--cream-dim); margin-bottom: 1.5rem; }
         .see-do-enquire {
           font-family: 'Inter', sans-serif;
-          font-size: 0.68rem;
-          letter-spacing: 0.22em;
-          text-transform: uppercase;
-          background: var(--gold);
-          color: var(--dark);
-          border: none;
-          padding: 1rem 2.4rem;
-          cursor: pointer;
-          transition: background 0.3s;
-          margin-top: 0.8rem;
-          width: fit-content;
+          font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+          background: var(--white); color: var(--dark);
+          border: none; padding: 0.85rem 1.8rem; cursor: pointer; transition: all 0.3s; width: fit-content;
         }
-        .see-do-enquire:hover { background: var(--gold-light); }
-
-        .see-do-image {
-          position: relative;
-          overflow: hidden;
-        }
-
+        .see-do-enquire:hover { background: var(--gold); color: var(--dark); }
+        .see-do-image { position: relative; overflow: hidden; }
         .see-do-image img {
-          width: 100%; height: 100%;
-          object-fit: cover; display: block;
-          transition: transform 0.8s ease;
+          width: 100%; height: 100%; max-height: 420px; object-fit: cover; display: block; transition: transform 0.8s ease;
         }
         .see-do-image:hover img { transform: scale(1.03); }
 
-        /* gold accent line on image */
-        .see-do-image::after {
-          content: '';
-          position: absolute;
-          bottom: 2.5rem; left: -1.5rem;
-          width: 40%; height: 40%;
-          border: 1px solid rgba(201,168,76,0.35);
-          pointer-events: none;
-          z-index: 2;
+        /* EXPERIENCE GALLERY */
+        .exp-gallery {
+          padding: 4rem 5rem;
+          background: var(--dark-2);
+          border-top: 1px solid rgba(201,168,76,0.08);
         }
+        .exp-gallery-title-row {
+          text-align: center;
+          margin-bottom: 3rem;
+        }
+        .exp-gallery-label {
+          font-size: 0.62rem; letter-spacing: 0.45em;
+          text-transform: uppercase; color: var(--gold);
+          margin-bottom: 0.75rem; display: block;
+        }
+        .exp-gallery-heading {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+          font-weight: 300; color: var(--white); line-height: 1.2;
+        }
+        .exp-gallery-heading em { font-style: italic; color: var(--gold-light); }
+        .exp-gallery-layout {
+          display: grid;
+          grid-template-columns: 1.15fr 1fr;
+          gap: 4rem;
+          align-items: center;
+          max-width: 1300px;
+          margin: 0 auto;
+        }
+        .exp-gallery-img-wrap { overflow: hidden; }
+        .exp-gallery-img {
+          width: 100%;
+          aspect-ratio: 16/10;
+          object-fit: cover;
+          display: block;
+          background: #1a1a1a;
+          transition: transform 0.8s ease;
+        }
+        .exp-gallery-img-wrap:hover .exp-gallery-img { transform: scale(1.03); }
+        .exp-gallery-text-col { padding-right: 1rem; }
+        .exp-gallery-text-col .eyebrow { margin-bottom: 1rem; }
+        .exp-gallery-text-col .section-title { font-size: clamp(1.6rem, 2.8vw, 2.4rem); margin-bottom: 1.5rem; }
+        .exp-gallery-body {
+          font-size: 0.85rem; line-height: 2;
+          color: var(--cream-dim); margin-bottom: 2rem;
+        }
+        .exp-gallery-link {
+          display: inline-flex; align-items: center; gap: 0.75rem;
+          font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase;
+          color: var(--gold); text-decoration: none; transition: gap 0.3s;
+        }
+        .exp-gallery-link:hover { gap: 1.25rem; }
 
         /* HOTELS */
         .hotels { padding: 7rem 5rem; background: var(--dark-2); }
@@ -375,14 +463,6 @@ export default function DestinationPage() {
         .hotel-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.5rem; }
         .hotel-tag { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.3rem; }
         .hotel-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 300; color: var(--white); }
-
-        /* INSPIRATION */
-        .inspiration { padding: 7rem 5rem; }
-        .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: auto auto; gap: 1rem; margin-top: 3rem; }
-        .gallery-item { overflow: hidden; cursor: pointer; }
-        .gallery-item:first-child { grid-column: span 2; grid-row: span 2; }
-        .gallery-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; min-height: 200px; }
-        .gallery-item:hover .gallery-img { transform: scale(1.04); }
 
         /* ENQUIRE BANNER */
         .enquire-banner {
@@ -436,21 +516,25 @@ export default function DestinationPage() {
           .section-nav-inner { justify-content: flex-start; overflow-x: auto; padding: 0 2rem; }
           .section-nav-link { padding: 1rem 1.2rem; white-space: nowrap; }
           .overview { padding: 5rem 2rem; }
-          .itineraries, .hotels, .inspiration, .more-dest { padding: 5rem 2rem; }
-          .itinerary-cards, .hotels-grid, .more-grid { grid-template-columns: 1fr; }
-          .gallery-grid { grid-template-columns: repeat(2,1fr); }
-          .gallery-item:first-child { grid-column: span 2; grid-row: span 1; }
+          .hotels, .more-dest { padding: 5rem 2rem; }
+          .hotels-grid, .more-grid { grid-template-columns: 1fr; }
           .enquire-banner { flex-direction: column; gap: 3rem; padding: 5rem 2rem; align-items: flex-start; }
           .enquire-actions { align-items: flex-start; }
           .footer-main { grid-template-columns: 1fr 1fr; padding: 3rem 2rem 2rem; }
           .footer-bottom { flex-direction: column; gap: 1rem; padding: 1.5rem 2rem; }
-
-          /* see-do responsive */
+          .itin-layout { grid-template-columns: 1fr; }
+          .itin-left { padding: 4rem 2rem 2rem; border-right: none; border-bottom: 1px solid rgba(201,168,76,0.08); }
+          .itin-cards-row { height: 460px; }
+          .itin-card-v2 { flex: 0 0 260px; }
           .see-do-header { padding: 4rem 2rem 0; }
           .see-do-split { grid-template-columns: 1fr; }
           .see-do-text { padding: 3rem 2rem; }
-          .see-do-image { min-height: 340px; }
+          .see-do-image { min-height: 280px; }
           .see-do-image::after { display: none; }
+          .exp-gallery { padding: 3.5rem 2rem; }
+          .exp-gallery-layout { grid-template-columns: 1fr; gap: 2.5rem; }
+          .exp-gallery-text-col { padding-right: 0; }
+          .exp-gallery-img { aspect-ratio: 16/9; }
         }
       `}</style>
 
@@ -514,83 +598,98 @@ export default function DestinationPage() {
 
       {/* ITINERARIES */}
       <section id="itineraries" className="itineraries">
-        <h2 className="section-title">Example <em>{dest.name}</em> trips</h2>
-        <div className="itinerary-cards">
-          {[
-            { nights: "2 Nights", title: "The Weekend Escape", image: dest.gallery[0] },
-            { nights: "5 Nights", title: "The Deep Dive",      image: dest.gallery[1] },
-          ].map((itin, i) => (
-            <div className="itinerary-card" key={i}>
-              <div className="itin-bg" style={{ backgroundImage: `url(${itin.image})` }} />
-              <div className="itin-overlay" />
-              <span className="itin-nights">{itin.nights}</span>
-              <div className="itin-bottom">
-                <h3 className="itin-title">{itin.title}</h3>
-                <button className="itin-btn">Explore Trip →</button>
-              </div>
-            </div>
-          ))}
-
-          {/* CREATE YOUR OWN CARD */}
-          <div className="itinerary-card itin-custom">
-            <div className="itin-bg" style={{ backgroundImage: `url(${dest.gallery[2]})` }} />
-            <div className="itin-overlay itin-custom-overlay" />
-            <span className="itin-nights">Custom Trips</span>
-            <div className="itin-bottom">
-              <h3 className="itin-title itin-custom-title">Create Your Own Itinerary</h3>
-              <button className="itin-btn">Create Trip →</button>
+        <div className="itin-layout">
+          <div className="itin-left">
+            <p className="itin-left-eyebrow">Example Trips</p>
+            <h2 className="itin-left-title">Example {dest.name} Trips</h2>
+            <p className="itin-left-desc">
+              These journeys are simply suggestions for the kind of experience you might have.
+              Yours will be tailored, altered, and refined until it matches you completely.
+            </p>
+            <button className="itin-left-cta">Build My Trip</button>
+          </div>
+          <div
+            className="itin-scroll-wrap"
+            ref={scrollRef}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+          >
+            <div className="itin-cards-row">
+              {trips.map((trip, i) => (
+                <div className="itin-card-v2" key={i}>
+                  <div className="itin-card-bg" style={{ backgroundImage: `url(${trip.image})` }} />
+                  <div className="itin-card-overlay" />
+                  <span className="itin-card-nights">{trip.nights}</span>
+                  <div className="itin-card-bottom">
+                    <h3 className="itin-card-title">{trip.title}</h3>
+                    <button className="itin-card-btn">Explore Trip</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── SEE & DO — editorial split ── */}
+      {/* SEE & DO */}
       <section id="see-do" className="see-do">
-
-        {/* centred heading block */}
-        <div className="see-do-header">
-          <p className="eyebrow" style={{ justifyContent: "center" }}>
-            What to See &amp; Do
+        <div className="see-do-top">
+          <h2 className="see-do-main-title">What to See and Do in {dest.name}</h2>
+          <p className="see-do-main-sub">
+            Use the below as inspiration, then{" "}
+            <a href="#" className="see-do-link">get in touch</a>{" "}
+            to enquire about your dream {dest.name} holiday.
           </p>
-          <h2 className="section-title" style={{ textAlign: "center" }}>
-            Experience <em>{dest.name}</em>
-          </h2>
         </div>
-
-        {/* split: text left, image right */}
         <div className="see-do-split">
-
           <div className="see-do-text">
-            <p className="eyebrow">Discover the Soul of {dest.name}</p>
-
-            <p className="see-do-lead">
-              A destination that rewards those who <em>linger</em>.
-            </p>
-
-            <p className="see-do-body">{dest.seeDo ?? dest.about}</p>
-
-            <p className="see-do-body">
-              Whether you're tracing centuries-old ramparts at dawn, watching sea turtles
-              nest on moonlit shores, or losing yourself in the quiet lanes of the old
-              fort — {dest.name} offers experiences that stay with you long after you leave.
-              Let us craft a journey entirely around you.
-            </p>
-
-            <button className="see-do-enquire">Enquire Now</button>
+            <h3 className="see-do-inner-title">Luxury in {dest.name}</h3>
+            <p className="see-do-body">{dest.about}</p>
+            <button className="see-do-enquire">Enquire</button>
           </div>
-
           <div className="see-do-image">
             <img
-              src="/images/galle-beach-scaled.webp"
+              src={dest.gallery[0]}
               alt={`Experience ${dest.name}`}
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.background =
-                  "linear-gradient(160deg,#1c1c1c,#111)";
+                (e.currentTarget as HTMLImageElement).style.background = "linear-gradient(160deg,#1c1c1c,#111)";
                 (e.currentTarget as HTMLImageElement).removeAttribute("src");
               }}
             />
           </div>
+        </div>
+      </section>
 
+      {/* EXPERIENCE GALLERY */}
+      <section className="exp-gallery">
+        <div className="exp-gallery-title-row">
+          <span className="exp-gallery-label">{dest.name} Activities</span>
+          <h2 className="exp-gallery-heading">
+            Experiences That <em>Define</em> {dest.name}
+          </h2>
+        </div>
+        <div className="exp-gallery-layout">
+          <div className="exp-gallery-img-wrap">
+            <img
+              src={dest.gallery[1]}
+              alt={`${dest.name} Activities`}
+              className="exp-gallery-img"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.background = "linear-gradient(160deg,#1c1c1c,#111)";
+                (e.currentTarget as HTMLImageElement).removeAttribute("src");
+              }}
+            />
+          </div>
+          <div className="exp-gallery-text-col">
+            <p className="eyebrow">The {dest.name} Experience</p>
+            <h3 className="section-title">
+              Life Lived <em>Fully.</em>
+            </h3>
+            <p className="exp-gallery-body">{dest.about}</p>
+            <a href="#" className="exp-gallery-link">Explore All Activities →</a>
+          </div>
         </div>
       </section>
 
@@ -600,7 +699,7 @@ export default function DestinationPage() {
         <h2 className="section-title">Hotels in <em>{dest.name}</em></h2>
         <div className="hotels-grid">
           {[
-            { tag: "Boutique", name: "The Fort Residency", image: "/images/hotels/hotel1.jpg" },
+            { tag: "Boutique", name: "The Fort Residency", image: dest.gallery[0] },
             { tag: "Luxury",   name: "Amangalla",          image: dest.gallery[1] },
             { tag: "Heritage", name: "Cape Weligama",      image: dest.gallery[2] },
           ].map((hotel, i) => (
@@ -617,7 +716,6 @@ export default function DestinationPage() {
         </div>
       </section>
 
- 
       {/* ENQUIRE BANNER */}
       <section className="enquire-banner">
         <div>

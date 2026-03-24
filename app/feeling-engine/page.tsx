@@ -23,6 +23,15 @@ Rules:
 - Keep HIGHLIGHT under 30 words.
 - If they mention a duration, use it. Otherwise choose the best duration.`;
 
+const suggestions: string[] = [
+  "I want to disappear into the jungle for a week",
+  "Something spiritual and slow, just me and the mountains",
+  "A honeymoon that feels like a dream we never wake from",
+  "Wild nature, no crowds, complete silence",
+  "I want to feel transformed by ancient history",
+  "10 days somewhere no tourist has ever been",
+];
+
 type JourneyData = {
   title: string;
   tagline: string;
@@ -33,45 +42,39 @@ type JourneyData = {
 };
 
 function parseJourney(text: string): JourneyData {
-  const get = (key: string) => {
-    const match = text.match(new RegExp(`${key}[:\\s]+([^\\n]+)`, "i"));
-    return match ? match[1].trim() : "";
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const getValue = (key: string): string => {
+    for (const line of lines) {
+      if (line.toUpperCase().startsWith(key.toUpperCase() + ":")) {
+        return line.substring(line.indexOf(":") + 1).trim();
+      }
+    }
+    return "";
   };
 
-  // Try to extract destinations more flexibly
-  const destRaw = get("DESTINATIONS");
-  const destinations = destRaw
-    ? destRaw.split(/[,|]/).map((d) => d.trim()).filter(Boolean)
-    : [];
-
-  // Extract days - look for any number near "days"
-  const daysMatch = text.match(/DAYS[:\s]+(\d+)/i) || text.match(/(\d+)\s*days/i);
-  const days = daysMatch ? daysMatch[1] : "9";
+  const destRaw = getValue("DESTINATIONS");
+  const daysRaw = getValue("DAYS");
+  const daysNum = daysRaw.match(/\d+/)?.[0] || "9";
 
   return {
-    title: get("JOURNEY_TITLE") || get("TITLE"),
-    tagline: get("TAGLINE"),
-    description: get("DESCRIPTION"),
-    days,
-    destinations,
-    highlight: get("HIGHLIGHT"),
+    title: getValue("JOURNEY_TITLE") || getValue("TITLE") || "A Journey Awaits",
+    tagline: getValue("TAGLINE"),
+    description: getValue("DESCRIPTION"),
+    days: daysNum,
+    destinations: destRaw
+      ? destRaw.split(",").map((d: string) => d.trim()).filter(Boolean)
+      : [],
+    highlight: getValue("HIGHLIGHT"),
   };
 }
-const suggestions = [
-  "I want to disappear into the jungle for a week",
-  "Something spiritual and slow, just me and the mountains",
-  "A honeymoon that feels like a dream we never wake from",
-  "Wild nature, no crowds, complete silence",
-  "I want to feel transformed by ancient history",
-  "10 days somewhere no tourist has ever been",
-];
 
 export default function FeelingEngine() {
-  const [prompt, setPrompt] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [prompt, setPrompt] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const [journey, setJourney] = useState<JourneyData | null>(null);
-  const [error, setError] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<boolean>(false);
+  const [submitted, setSubmitted] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async () => {
@@ -94,7 +97,7 @@ export default function FeelingEngine() {
       });
 
       const data = await response.json();
-      const text = data.content?.[0]?.text || "";
+      const text: string = data.content?.[0]?.text || "";
       setJourney(parseJourney(text));
     } catch {
       setError(true);
@@ -111,7 +114,7 @@ export default function FeelingEngine() {
     setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -185,20 +188,21 @@ export default function FeelingEngine() {
           display: flex; flex-direction: column;
           align-items: center; justify-content: center;
           padding: 6rem 2rem 2rem;
-          transition: justify-content 0.6s ease;
         }
-        .page.has-result { justify-content: flex-start; padding-top: 8rem; }
+        .page.has-result {
+          justify-content: flex-start;
+          padding-top: 8rem;
+          overflow-y: auto;
+        }
 
         /* TOP SECTION */
         .top-section {
           display: flex; flex-direction: column;
           align-items: center; text-align: center;
-          transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
           width: 100%; max-width: 760px;
+          transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
         }
-        .top-section.compact {
-          margin-bottom: 2rem;
-        }
+        .top-section.compact { margin-bottom: 1.5rem; }
 
         .engine-eyebrow {
           font-size: 0.62rem; letter-spacing: 0.5em;
@@ -239,11 +243,9 @@ export default function FeelingEngine() {
           max-width: 460px; line-height: 1.9;
           transition: all 0.5s ease;
         }
-        .top-section.compact .engine-sub {
-          display: none;
-        }
+        .top-section.compact .engine-sub { display: none; }
 
-        /* INPUT AREA */
+        /* INPUT */
         .input-section {
           width: 100%; max-width: 760px;
           animation: fadeUp 1s 0.5s ease both;
@@ -256,6 +258,7 @@ export default function FeelingEngine() {
           backdrop-filter: blur(20px);
           transition: border-color 0.3s;
           border-radius: 16px;
+          overflow: hidden;
         }
         .input-box:focus-within {
           border-color: rgba(201,168,76,0.5);
@@ -271,6 +274,7 @@ export default function FeelingEngine() {
           padding: 1.5rem 5rem 1.5rem 1.8rem;
           resize: none; line-height: 1.6;
           min-height: 70px;
+          border-radius: 16px;
         }
         .prompt-textarea::placeholder {
           color: rgba(255,255,255,0.3);
@@ -284,6 +288,7 @@ export default function FeelingEngine() {
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: background 0.3s;
           color: var(--dark); font-size: 1rem;
+          border-radius: 4px;
         }
         .send-btn:hover { background: var(--gold-light); }
         .send-btn:disabled {
@@ -296,10 +301,6 @@ export default function FeelingEngine() {
           display: flex; gap: 0.6rem;
           flex-wrap: wrap; margin-top: 1rem;
           justify-content: center;
-          transition: all 0.4s ease;
-        }
-        .top-section.compact ~ .input-section .suggestions {
-          display: none;
         }
         .suggestion-chip {
           font-size: 0.72rem; letter-spacing: 0.04em;
@@ -310,6 +311,7 @@ export default function FeelingEngine() {
           cursor: pointer; transition: all 0.3s;
           backdrop-filter: blur(8px);
           font-family: 'Inter', sans-serif;
+          border-radius: 4px;
         }
         .suggestion-chip:hover {
           color: var(--white);
@@ -326,11 +328,8 @@ export default function FeelingEngine() {
           border: 1px solid rgba(201,168,76,0.18);
           padding: 2.5rem 3rem;
           animation: fadeUp 0.5s ease both;
-          overflow-y: auto;
-          max-height: calc(100vh - 280px);
+          border-radius: 12px;
         }
-        .result-panel::-webkit-scrollbar { width: 3px; }
-        .result-panel::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.2); }
 
         /* LOADING */
         .loading-state {
@@ -357,7 +356,6 @@ export default function FeelingEngine() {
           grid-template-columns: 1.2fr 1fr;
           gap: 3rem;
         }
-
         .journey-meta {
           font-size: 0.6rem; letter-spacing: 0.38em;
           text-transform: uppercase; color: var(--gold);
@@ -381,8 +379,6 @@ export default function FeelingEngine() {
           font-size: 0.85rem; line-height: 1.9;
           color: rgba(255,255,255,0.65);
         }
-
-        .journey-right {}
         .highlight-label {
           font-size: 0.58rem; letter-spacing: 0.3em;
           text-transform: uppercase; color: var(--gold);
@@ -397,12 +393,23 @@ export default function FeelingEngine() {
           padding-left: 1.2rem;
           margin-bottom: 1.5rem;
         }
+        .days-wrap {
+          display: flex; align-items: baseline; gap: 0.4rem;
+        }
+        .days-num {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 2.5rem; font-weight: 300;
+          color: var(--gold-light); line-height: 1;
+        }
+        .days-label {
+          font-size: 0.62rem; letter-spacing: 0.25em;
+          text-transform: uppercase; color: var(--cream-dim);
+        }
 
         .journey-footer {
           display: flex; align-items: center;
           justify-content: space-between;
-          margin-top: 2rem;
-          padding-top: 1.5rem;
+          margin-top: 2rem; padding-top: 1.5rem;
           border-top: 1px solid rgba(255,255,255,0.06);
           flex-wrap: wrap; gap: 1rem;
         }
@@ -412,17 +419,6 @@ export default function FeelingEngine() {
           text-transform: uppercase;
           color: var(--dark); background: var(--gold);
           padding: 0.28rem 0.75rem;
-        }
-        .journey-days {
-          display: flex; align-items: baseline; gap: 0.4rem;
-        }
-        .days-num {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 2.5rem; font-weight: 300; color: var(--gold-light); line-height: 1;
-        }
-        .days-label {
-          font-size: 0.62rem; letter-spacing: 0.25em;
-          text-transform: uppercase; color: var(--cream-dim);
         }
         .footer-actions { display: flex; gap: 1rem; align-items: center; }
         .btn-enquire {
@@ -442,7 +438,6 @@ export default function FeelingEngine() {
         }
         .btn-reset:hover { color: var(--white); }
 
-        /* USER PROMPT DISPLAY */
         .user-prompt-display {
           font-size: 0.75rem; color: rgba(255,255,255,0.35);
           font-style: italic; margin-bottom: 1.5rem;
@@ -475,7 +470,7 @@ export default function FeelingEngine() {
           src="/images/feeling-bg.webp"
           alt="Sri Lanka"
           className="bg-img"
-          onError={(e) => { e.currentTarget.style.display = "none"; }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
         />
         <div className="bg-overlay" />
         <div className="bg-grain" />
@@ -488,7 +483,7 @@ export default function FeelingEngine() {
             src="/images/navbar logo.png"
             alt="Samsara"
             style={{ height: "45px", width: "auto" }}
-            onError={(e) => (e.currentTarget.style.display = "none")}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         </a>
         <a href="/" className="nav-back">← Back to Samsara</a>
@@ -504,7 +499,7 @@ export default function FeelingEngine() {
             How do you want<br />to <em>feel?</em>
           </h1>
           <p className="engine-sub">
-            Don't search for a destination. Tell us how you want to feel — in your own words —
+            Don&apos;t search for a destination. Tell us how you want to feel — in your own words —
             and our AI will design a Sri Lanka journey around that feeling alone.
           </p>
         </div>
@@ -531,14 +526,17 @@ export default function FeelingEngine() {
             </button>
           </div>
 
-          {/* SUGGESTIONS */}
+          {/* SUGGESTIONS — only show before submit */}
           {!submitted && (
             <div className="suggestions">
-              {suggestions.map((s, i) => (
+              {suggestions.map((s: string, i: number) => (
                 <button
                   key={i}
                   className="suggestion-chip"
-                  onClick={() => { setPrompt(s); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                  onClick={() => {
+                    setPrompt(s);
+                    setTimeout(() => textareaRef.current?.focus(), 50);
+                  }}
                 >
                   {s}
                 </button>
@@ -564,7 +562,7 @@ export default function FeelingEngine() {
             {!loading && journey && (
               <>
                 <p className="user-prompt-display">
-                  You said: <span>"{prompt}"</span>
+                  You said: <span>&ldquo;{prompt}&rdquo;</span>
                 </p>
                 <div className="journey-grid">
                   <div>
@@ -573,10 +571,10 @@ export default function FeelingEngine() {
                     <p className="journey-tagline">{journey.tagline}</p>
                     <p className="journey-desc">{journey.description}</p>
                   </div>
-                  <div className="journey-right">
+                  <div>
                     <p className="highlight-label">Defining Moment</p>
                     <p className="highlight-text">{journey.highlight}</p>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
+                    <div className="days-wrap">
                       <span className="days-num">{journey.days}</span>
                       <span className="days-label">Days</span>
                     </div>
@@ -584,7 +582,7 @@ export default function FeelingEngine() {
                 </div>
                 <div className="journey-footer">
                   <div className="journey-tags">
-                    {journey.destinations.map((d, i) => (
+                    {journey.destinations.map((d: string, i: number) => (
                       <span className="journey-tag" key={i}>{d}</span>
                     ))}
                   </div>
