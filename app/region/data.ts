@@ -172,7 +172,7 @@ export const regions: Region[] = [
       { name: "Mannar", tagline: "Flamingos, Baobabs & the Wind", slug: "mannar", image: "/images/galle-trip-3.webp", hasPage: false },
       { name: "Vavuniya", tagline: "The Gateway to the North", slug: "vavuniya", image: "/images/galle-trip-5.webp", hasPage: false },
     ],
-    trips: [],
+    trips: [], inspirations: [], testimonials: [],
   },
 ];
 
