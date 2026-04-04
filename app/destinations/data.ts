@@ -18,7 +18,7 @@ export const destinations: Destination[] = [
     sinhala: ".d,a,",
     country: "Sri Lanka",
     tagline: "Where History Meets the Sea",
-    heroImage: "/images/galle.webp",
+    heroImage: "/images/galle-g-1.webp",
     about: "Galle is a city where colonial history breathes alongside tropical beauty. Walk the ancient Dutch fort walls as the Indian Ocean stretches endlessly before you, discover boutique shops and hidden cafes within centuries-old streets, and let the languid pace of the south slow you down.",
     activities: [
       { title: "The Art of Making Something Yours", description: "Wander the UNESCO-listed Dutch fort at golden hour when the walls glow amber.", image: "/images/galle-act-1.webp" },
@@ -30,6 +30,8 @@ export const destinations: Destination[] = [
       { name: "Ella", country: "The Hill Country", slug: "ella", image: "/images/dest-2.webp" },
       { name: "Sigiriya", country: "The Hill Country", slug: "sigiriya", image: "/images/dest-4.webp" },
       { name: "Unawatuna", country: "Down South", slug: "unawatuna", image: "/images/dest-3.webp" },
+      { name: "Pollonnaruwa", country: "The Ancient Kingdoms", slug: "pollonnaruwa", image: "/images/dest-5.webp" },
+      { name: "Mirissa", country: "Down South", slug: "mirissa", image: "/images/dest-3.webp" },
     ],
   },
   {
@@ -50,6 +52,8 @@ export const destinations: Destination[] = [
       { name: "Galle", country: "Down South", slug: "galle", image: "/images/dest-1.webp" },
       { name: "Sigiriya", country: "The Hill Country", slug: "sigiriya", image: "/images/dest-4.webp" },
       { name: "Pollonnaruwa", country: "The Ancient Kingdoms", slug: "pollonnaruwa", image: "/images/dest-5.webp" },
+      { name: "Unawatuna", country: "Down South", slug: "unawatuna", image: "/images/dest-3.webp" },
+      { name: "Mirissa", country: "Down South", slug: "mirissa", image: "/images/dest-3.webp" },
     ],
   },
   {
@@ -70,6 +74,8 @@ export const destinations: Destination[] = [
       { name: "Galle", country: "Down South", slug: "galle", image: "/images/dest-1.webp" },
       { name: "Ella", country: "The Hill Country", slug: "ella", image: "/images/dest-2.webp" },
       { name: "Sigiriya", country: "The Hill Country", slug: "sigiriya", image: "/images/dest-4.webp" },
+      { name: "Pollonnaruwa", country: "The Ancient Kingdoms", slug: "pollonnaruwa", image: "/images/dest-5.webp" },
+      { name: "Mirissa", country: "Down South", slug: "mirissa", image: "/images/dest-3.webp" },
     ],
   },
   {
@@ -90,6 +96,8 @@ export const destinations: Destination[] = [
       { name: "Ella", country: "The Hill Country", slug: "ella", image: "/images/dest-2.webp" },
       { name: "Pollonnaruwa", country: "The Ancient Kingdoms", slug: "pollonnaruwa", image: "/images/dest-5.webp" },
       { name: "Galle", country: "Down South", slug: "galle", image: "/images/dest-1.webp" },
+      { name: "Unawatuna", country: "Down South", slug: "unawatuna", image: "/images/dest-3.webp" },
+      { name: "Mirissa", country: "Down South", slug: "mirissa", image: "/images/dest-3.webp" },
     ],
   },
   {
@@ -110,6 +118,8 @@ export const destinations: Destination[] = [
       { name: "Sigiriya", country: "The Hill Country", slug: "sigiriya", image: "/images/dest-4.webp" },
       { name: "Ella", country: "The Hill Country", slug: "ella", image: "/images/dest-2.webp" },
       { name: "Galle", country: "Down South", slug: "galle", image: "/images/dest-1.webp" },
+      { name: "Unawatuna", country: "Down South", slug: "unawatuna", image: "/images/dest-3.webp" },
+      { name: "Mirissa", country: "Down South", slug: "mirissa", image: "/images/dest-3.webp" },
     ],
   },
 ];

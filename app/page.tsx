@@ -44,13 +44,6 @@ function TestimonialSlider() {
 }
 
 export default function Home() {
-  const [scrollY, setScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   const destinations = [
     { name: "Galle", country: "Doen South", tag: "Coastal Luxury", image: "/images/dest-1.webp" },
@@ -94,55 +87,6 @@ export default function Home() {
         }
 
         /* NAVBAR */
-        .navbar {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-          padding: 2rem 5rem;
-          display: flex; align-items: center; justify-content: space-between;
-          transition: background 0.5s, padding 0.4s, border-color 0.5s;
-          border-bottom: 1px solid transparent;
-        }
-        .navbar.scrolled {
-          background: rgba(8,8,8,0.93);
-          backdrop-filter: blur(16px);
-          padding: 1.2rem 5rem;
-          border-color: rgba(201,168,76,0.12);
-        }
-        .nav-logo { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; }
-        .nav-logo img { height: 38px; width: auto; object-fit: contain; }
-        .nav-logo-text {
-          font-family: 'inter';
-          font-size: 1.6rem; font-weight: 400;
-          letter-spacing: 0.3em; text-transform: uppercase; color: var(--white);
-        }
-        .nav-links { display: flex; gap: 2.5rem; list-style: none; }
-        .nav-links a {
-          color: rgb(255, 255, 255, 1); text-decoration: none;
-          font-size: 0.80rem; letter-spacing: 0.1em; text-transform: uppercase;
-          transition: color 0.3s; position: relative;
-          font-family: 'Inter', sans-serif;
-        }
-        .nav-links a::after {
-          content: ''; position: absolute; bottom: -4px; left: 0;
-          width: 0; height: 1px; background: var(--gold); transition: width 0.3s;
-        }
-        .nav-links a:hover { color: var(--gold-light); }
-        .nav-links a:hover::after { width: 100%; }
-        .nav-cta {
-            font-family: 'Jost', sans-serif;
-            font-size: 0.68rem;
-            letter-spacing: 0.22em;
-            text-transform: uppercase;
-            color: #000000;
-            border: none;
-            padding: 0.65rem 1.6rem;
-            background: var(--gold);
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .nav-cta:hover {
-          background: var(--gold-light);
-          color: var(--dark);
-        }
 
         /* VIDEO HERO */
         .hero {
@@ -169,23 +113,23 @@ export default function Home() {
         }
         .hero-brand {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(3.5rem, 9vw, 7.5rem); font-weight: 300;
+          font-size: clamp(4.24rem, 9vw, 6.85rem); font-weight: 300;
           letter-spacing: 0.25em; text-transform: uppercase; color: var(--white); line-height: 1; margin-bottom: 1rem;
         }
         .hero-tagline {
-          font-size: 0.75rem; letter-spacing: 0.35em; text-transform: uppercase;
+          font-size: var(--text-xs); letter-spacing: 0.35em; text-transform: uppercase;
           color: rgba(255,255,255,0.65); margin-bottom: 3rem;
         }
         .hero-actions { display: flex; align-items: center; justify-content: center; gap: 2rem; }
         .btn-gold {
-          font-family: 'Jost', sans-serif; font-size: 0.7rem;
+          font-family: 'Jost', sans-serif; font-size: var(--text-sm);
           letter-spacing: 0.22em; text-transform: uppercase;
           background: var(--gold); color: var(--dark); border: none;
           padding: 1rem 2.8rem; cursor: pointer; transition: background 0.3s;
         }
         .btn-gold:hover { background: var(--gold-light); }
         .btn-outline {
-          font-family: 'Jost', sans-serif; font-size: 0.7rem;
+          font-family: 'Jost', sans-serif; font-size: var(--text-sm);
           letter-spacing: 0.22em; text-transform: uppercase;
           background: transparent; color: var(--white);
           border: 1px solid rgba(255,255,255,0.35);
@@ -197,42 +141,35 @@ export default function Home() {
           z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
           animation: fadeUp 2s 0.8s ease both;
         }
-        .hero-scroll span { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+        .hero-scroll span { font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
         .scroll-dot { width: 1px; height: 50px; background: linear-gradient(to bottom, var(--gold), transparent); animation: pulse 2s ease-in-out infinite; }
 
   /* ABOUT HERO SECTION */
         .about-hero {
           background: linear-gradient(135deg, var(--dark) 0%, var(--dark-2) 100%);
           padding: 10rem 5rem;
-          display: grid;
-          grid-template-columns: 1.2fr 1fr;
-          gap: 6rem;
+          display: flex;
+          flex-direction: column;
           align-items: center;
+          justify-content: center;
+          text-align: center;
           overflow: hidden;
           position: relative;
         }
 
-        .about-hero::before {
-          content: '';
-          position: absolute;
-          top: -50%;
-          right: -20%;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(212, 170, 0, 0.08) 0%, transparent 70%);
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 1;
-        }
 
         .about-content {
           position: relative;
           z-index: 2;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
         }
 
         .about-headline {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.8rem, 4vw, 3.2rem);
+          font-size: clamp(1.62rem, 4vw, 2.62rem);
           text-align: center;
           font-weight: 300;
           letter-spacing: 0.08em;
@@ -249,25 +186,27 @@ export default function Home() {
         }
 
         .about-description {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 1.15rem;
-          font-weight: 300;
+          font-family: 'Inter', sans-serif;
+          font-size: var(--text-base);
+          font-weight: 200;
           line-height: 1.8;
           color: rgba(255, 255, 255, 0.85);
           margin-bottom: 2.5rem;
-          max-width: 520px;
+          max-width: 600px;
+          text-align: center;
           animation: fadeInUp 0.8s ease-out 0.2s both;
         }
 
         .about-cta-group {
           display: flex;
           gap: 1.5rem;
+          justify-content: center;
           animation: fadeInUp 0.8s ease-out 0.3s both;
         }
 
         .about-btn {
           font-family: 'Inter', sans-serif;
-          font-size: 0.75rem;
+          font-size: var(--text-xs);
           letter-spacing: 0.25em;
           text-transform: uppercase;
           padding: 1.1rem 2.5rem;
@@ -315,7 +254,7 @@ export default function Home() {
         .marquee { background: var(--gold); padding: 0.85rem 0; overflow: hidden; white-space: nowrap; }
         .marquee-track { display: inline-flex; animation: marquee 25s linear infinite; }
         .marquee-item {
-          font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase;
+          font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase;
           color: var(--dark); font-family: 'Jost', sans-serif; font-weight: 400;
           padding: 0 2.5rem; display: flex; align-items: center; gap: 2.5rem;
         }
@@ -326,7 +265,7 @@ export default function Home() {
         .section-header { text-align: center; margin-bottom: 4rem; }
         .section-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(2.5rem, 6vw, 5rem);
+          font-size: clamp(2.62rem, 6vw, 4.24rem);
           font-weight: 300;
           letter-spacing: 0.05em;
           color: var(--white);
@@ -358,9 +297,9 @@ export default function Home() {
         .dest-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.1) 60%, transparent 100%); }
         
         .dest-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 1.8rem; }
-        .dest-tag { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
-        .dest-name { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 300; color: var(--white); line-height: 1.1; }
-        .dest-country { font-size: 0.7rem; letter-spacing: 0.15em; color: var(--cream-dim); margin-top: 0.2rem; }
+        .dest-tag { font-family: 'Inter', sans-serif; font-size: var(--text-xs); letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); font-weight: 500; margin-bottom: 0.4rem; }
+        .dest-name { font-family: 'Inter', sans-serif; font-size: var(--text-base); font-weight: 400; color: var(--white); text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.4; }
+        .dest-country { font-family: 'Inter', sans-serif; font-size: var(--text-xs); letter-spacing: 0.2em; color: var(--cream-dim); margin-top: 0.2rem; }
         .dest-arrow {
           position: absolute; top: 1.5rem; right: 1.5rem;
           width: 36px; height: 36px; border: 1px solid rgba(201,168,76,0.4);
@@ -372,7 +311,7 @@ export default function Home() {
         /* EXPLORE TRIPS */
         .explore { padding: 8rem 5rem; }
         .explore-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 4rem; }
-        .eyebrow { font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5rem; }
+        .eyebrow { font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5rem; }
         .trips-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
         .trip-card { position: relative; overflow: hidden; cursor: pointer; }
         .trip-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; transition: transform 0.6s ease; }
@@ -380,13 +319,12 @@ export default function Home() {
         .trip-img-ph { width: 100%; aspect-ratio: 3/4; background: linear-gradient(160deg,#181818,#0f0f0f); display: block; }
         .trip-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,0.95) 0%, rgba(8,8,8,0.05) 55%); }
         .trip-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.8rem; }
-        .trip-type { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
-        .trip-title { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; font-weight: 300; color: var(--white); line-height: 1.2; margin-bottom: 0.5rem; }
-        .trip-meta { font-size: 0.65rem; letter-spacing: 0.15em; color: var(--cream-dim); display: flex; align-items: center; gap: 0.75rem; }
-        .trip-meta::before { content: ''; display: inline-block; width: 18px; height: 1px; background: var(--gold-dim); }
+        .trip-type { font-size: var(--text-xs); letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
+        .trip-title { font-family: 'Inter', sans-serif; font-size: var(--text-base); font-weight: 600; color: var(--white); text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.4; margin-bottom: 0.5rem; }
+        .trip-meta { font-size: var(--text-xs); letter-spacing: 0.15em; color: var(--cream-dim); }
         .trip-hover-btn {
           position: absolute; bottom: 1.8rem; right: 1.8rem;
-          font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold);
+          font-size: var(--text-xs); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold);
           opacity: 0; transform: translateX(8px); transition: all 0.4s;
         }
         .trip-card:hover .trip-hover-btn { opacity: 1; transform: translateX(0); }
@@ -404,7 +342,7 @@ export default function Home() {
           z-index: 2;
         }
         .trip-description p {
-          font-size: 1.2rem;
+          font-size: var(--text-base);
           line-height: 1.8;
           color: var(--white);
           font-family: 'Inter', sans-serif;
@@ -459,7 +397,7 @@ export default function Home() {
         }
         .quote-text {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.4rem, 3vw, 2.2rem);
+          font-size: clamp(1.62rem, 3vw, 2.62rem);
           font-weight: 300;
           font-style: italic;
           line-height: 1.6;
@@ -467,7 +405,7 @@ export default function Home() {
           margin-bottom: 2rem;
         }
         .quote-attr {
-          font-size: 0.65rem;
+          font-size: var(--text-xs);
           letter-spacing: 0.3em;
           text-transform: uppercase;
           color: var(--gold);
@@ -521,7 +459,7 @@ export default function Home() {
           padding: 0 2rem;
         }
         .banner-eyebrow {
-          font-size: 0.75rem;
+          font-size: var(--text-xs);
           letter-spacing: 0.4em;
           text-transform: uppercase;
           color: rgba(255,255,255,0.7);
@@ -529,7 +467,7 @@ export default function Home() {
         }
         .banner-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(5rem, 12vw, 10rem);
+          font-size: clamp(4.24rem, 9vw, 6.85rem);
           font-weight: 300;
           color: var(--white);
           line-height: 1;
@@ -537,7 +475,7 @@ export default function Home() {
           letter-spacing: 0.05em;
         }
         .banner-sub {
-          font-size: 0.9rem;
+          font-size: var(--text-base);
           letter-spacing: 0.05em;
           color: rgba(255,255,255,0.75);
           margin-bottom: 2.5rem;
@@ -548,7 +486,7 @@ export default function Home() {
         }
         .banner-btn {
           font-family: 'Inter', sans-serif;
-          font-size: 0.7rem;
+          font-size: var(--text-sm);
           letter-spacing: 0.25em;
           text-transform: uppercase;
           background: var(--white);
@@ -566,19 +504,19 @@ export default function Home() {
         /* FOOTER */
         footer { background: var(--dark-2); border-top: 1px solid rgba(201,168,76,0.1); }
         .footer-main { padding: 6rem 5rem 4rem; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 4rem; }
-        .footer-logo-text { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 1.2rem; display: block; }
-        .footer-tagline { font-size: 0.8rem; line-height: 1.9; color: var(--cream-dim); max-width: 280px; margin-bottom: 2rem; }
+        .footer-logo-text { font-family: 'Cormorant Garamond', serif; font-size: var(--text-md); font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 1.2rem; display: block; }
+        .footer-tagline { font-size: var(--text-xs); line-height: 1.9; color: var(--cream-dim); max-width: 280px; margin-bottom: 2rem; }
         .footer-socials { display: flex; gap: 1rem; }
-        .social-btn { width: 36px; height: 36px; border: 1px solid var(--gold-dim); display: flex; align-items: center; justify-content: center; color: var(--cream-dim); font-size: 0.75rem; cursor: pointer; background: none; transition: all 0.3s; }
+        .social-btn { width: 36px; height: 36px; border: 1px solid var(--gold-dim); display: flex; align-items: center; justify-content: center; color: var(--cream-dim); font-size: var(--text-xs); cursor: pointer; background: none; transition: all 0.3s; }
         .social-btn:hover { border-color: var(--gold); color: var(--gold); }
-        .footer-col-title { font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.8rem; }
+        .footer-col-title { font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.8rem; }
         .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.9rem; }
-        .footer-col ul a { font-size: 0.8rem; letter-spacing: 0.05em; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
+        .footer-col ul a { font-size: var(--text-xs); letter-spacing: 0.05em; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
         .footer-col ul a:hover { color: var(--gold-light); }
         .footer-bottom { border-top: 1px solid rgba(201,168,76,0.08); padding: 1.8rem 5rem; display: flex; align-items: center; justify-content: space-between; }
-        .footer-copy { font-size: 0.65rem; letter-spacing: 0.12em; color: var(--cream-dim); }
+        .footer-copy { font-size: var(--text-xs); letter-spacing: 0.12em; color: var(--cream-dim); }
         .footer-bottom-links { display: flex; gap: 2rem; list-style: none; }
-        .footer-bottom-links a { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
+        .footer-bottom-links a { font-size: var(--text-xs); letter-spacing: 0.15em; text-transform: uppercase; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
         .footer-bottom-links a:hover { color: var(--gold); }
 
         /* ANIMATIONS */
@@ -595,8 +533,6 @@ export default function Home() {
           .about-pillars { grid-template-columns: 1fr; padding: 8rem 4rem; gap: 3rem; }
         }
         @media (max-width: 900px) {
-          .navbar, .navbar.scrolled { padding: 1.2rem 2rem; }
-          .nav-links { display: none; }
           .destinations, .explore { padding: 5rem 2rem; }
           .dest-grid { flex-direction: column; height: auto; }
           .dest-card { flex: none !important; height: 280px; }
@@ -613,19 +549,6 @@ export default function Home() {
         }
       `}</style>
 
-      {/* NAVBAR */}
-      <nav className={`navbar ${scrollY > 60 ? "scrolled" : ""}`}>
-        <a href="/" className="nav-logo">
-          <img src="/images/navbar logo.png" alt="Samsara" style={{ height: "45px", width: "auto" }} />
-        </a>
-        <ul className="nav-links">
-          <li><a href="/destinations-page">Destinations</a></li>
-          <li><a href="#explore">Experiences</a></li>
-          <li><a href="/feeling-engine">Feelings Engine</a></li>
-          <li><a href="#about">About</a></li>
-        </ul>
-        <button className="nav-cta">Enquire Now</button>
-      </nav>
 
       {/* VIDEO HERO */}
       <section className="hero">
@@ -647,7 +570,7 @@ export default function Home() {
       <section className="about-hero" id="about">
         <div className="about-content">
    
-          <h1 className="about-headline">
+          <h1 className="section-title" style={{ textAlign: "center" }}>
             More Than a <em>Travel Company</em>
           </h1>
           

@@ -17,6 +17,8 @@ export default function DestinationPage() {
   const dest = getDestination(slug);
   const [scrollY, setScrollY] = useState(0);
   const [activeSection, setActiveSection] = useState("overview");
+  const [videoPlaying, setVideoPlaying] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const startX = useRef(0);
@@ -68,11 +70,11 @@ export default function DestinationPage() {
   }
 
   const trips = [
-    { nights: "7 Nights", title: `${dest.name}: A Weekend Escape`, image: dest.gallery[0] },
-    { nights: "10 Nights", title: `${dest.name}: The Deep Dive`, image: dest.gallery[1] },
-    { nights: "8 Nights", title: `A Journey into ${dest.name}`, image: dest.gallery[2] },
-    { nights: "12 Nights", title: `${dest.name}: A Spiritual Adventure`, image: dest.gallery[0] },
-    { nights: "Custom", title: `Create Your Own ${dest.name} Journey`, image: dest.gallery[1] },
+    { nights: "7 Nights", title: `${dest.name}: A Weekend Escape`, image: "/images/galle-trip-1.webp", desc: `A perfect introduction to ${dest.name} — sun-drenched coastlines, colonial charm, and evenings that linger long after the sun sets.` },
+    { nights: "10 Nights", title: `${dest.name}: The Deep Dive`, image: "/images/galle-trip-2.webp", desc: `Go beyond the surface. This journey uncovers the hidden layers of ${dest.name} — its stories, its flavours, and its quieter corners.` },
+    { nights: "8 Nights", title: `A Journey into ${dest.name}`, image: "/images/galle-trip-3.webp", desc: `A thoughtfully curated route through ${dest.name}'s most iconic and unexpected moments, crafted for the curious traveller.` },
+    { nights: "12 Nights", title: `${dest.name}: A Spiritual Adventure`, image: "/images/galle-trip-4.webp", desc: `Temples, silence, and sacred landscapes. A journey that slows you down and reconnects you with something deeper.` },
+    { nights: "Custom", title: `Create Your Own ${dest.name} Journey`, image: "/images/galle-trip-5.webp", desc: `No two travellers are alike. Tell us what moves you and we'll craft a ${dest.name} journey that is entirely, uniquely yours.` },
   ];
 
   return (
@@ -109,41 +111,6 @@ export default function DestinationPage() {
         }
 
         /* NAVBAR */
-        .navbar {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-          padding: 2rem 5rem;
-          display: flex; align-items: center; justify-content: space-between;
-          transition: background 0.5s, padding 0.4s, border-color 0.5s;
-          border-bottom: 1px solid transparent;
-        }
-        .navbar.scrolled {
-          background: rgba(8,8,8,0.93);
-          backdrop-filter: blur(16px);
-          padding: 1.2rem 5rem;
-          border-color: rgba(201,168,76,0.12);
-        }
-        .nav-logo { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; }
-        .nav-logo img { height: 38px; width: auto; object-fit: contain; }
-        .nav-links { display: flex; gap: 2.5rem; list-style: none; }
-        .nav-links a {
-          color: #fff; text-decoration: none;
-          font-size: 0.80rem; letter-spacing: 0.1em; text-transform: uppercase;
-          transition: color 0.3s; position: relative; font-family: 'Inter', sans-serif;
-        }
-        .nav-links a::after {
-          content: ''; position: absolute; bottom: -4px; left: 0;
-          width: 0; height: 1px; background: var(--gold); transition: width 0.3s;
-        }
-        .nav-links a:hover { color: var(--gold-light); }
-        .nav-links a:hover::after { width: 100%; }
-        .nav-cta {
-          font-family: 'Inter', sans-serif; font-size: 0.68rem;
-          letter-spacing: 0.22em; text-transform: uppercase;
-          color: #000; border: none; padding: 0.65rem 1.6rem;
-          background: #D4AA00; cursor: pointer; transition: all 0.3s;
-        }
-        .nav-cta:hover { background: var(--gold); color: var(--dark); }
-
         /* HERO */
         .hero {
           position: relative; height: 100vh; min-height: 600px;
@@ -164,27 +131,29 @@ export default function DestinationPage() {
           position: relative; z-index: 2;
           padding: 0 5rem 6rem; width: 100%;
           animation: fadeUp 1.2s ease both;
+          display: flex; flex-direction: column; align-items: center; text-align: center;
         }
         .hero-country {
-          font-size: 0.7rem; letter-spacing: 0.4em;
+          font-size: var(--text-xs); letter-spacing: 0.4em;
           text-transform: uppercase; color: var(--gold);
           margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem;
         }
-        .hero-country::before {
+        .hero-country::before,
+        .hero-country::after {
           content: ''; display: inline-block; width: 30px; height: 1px; background: var(--gold);
         }
         .hero-name {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(4rem, 9vw, 8rem);
-          font-weight: 300; line-height: 1; color: var(--white); margin-bottom: 0.5rem;
+          font-size: clamp(3rem, 7vw, 5.5rem);
+          font-weight: 300; line-height: 1; color: var(--white); margin-bottom: 0.8rem;
         }
         .hero-sinhala {
           font-family: 'Pawana', sans-serif;
-          font-size: clamp(1.5rem, 3vw, 2.5rem);
+          font-size: clamp(1.2rem, 2.5vw, 2rem);
           color: #D4AA00; letter-spacing: 0.2em; margin-bottom: 1rem;
         }
         .hero-tagline {
-          font-size: 0.9rem; letter-spacing: 0.1em;
+          font-size: var(--text-base); letter-spacing: 0.1em;
           color: var(--cream-dim); max-width: 400px;
         }
 
@@ -192,7 +161,7 @@ export default function DestinationPage() {
         .breadcrumb {
           padding: 1.2rem 5rem;
           display: flex; align-items: center; gap: 0.75rem;
-          font-size: 0.65rem; letter-spacing: 0.2em;
+          font-size: var(--text-xs); letter-spacing: 0.2em;
           text-transform: uppercase; color: var(--cream-dim);
           border-bottom: 1px solid rgba(201,168,76,0.08);
         }
@@ -213,7 +182,7 @@ export default function DestinationPage() {
         }
         .section-nav-link {
           font-family: 'Inter', sans-serif;
-          font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase;
+          font-size: var(--text-sm); letter-spacing: 0.2em; text-transform: uppercase;
           color: var(--cream-dim); text-decoration: none;
           padding: 1.2rem 2rem; position: relative;
           cursor: pointer; transition: color 0.3s;
@@ -231,18 +200,18 @@ export default function DestinationPage() {
 
         /* SHARED */
         .eyebrow {
-          font-size: 0.65rem; letter-spacing: 0.4em;
+          font-size: var(--text-xs); letter-spacing: 0.4em;
           text-transform: uppercase; color: var(--gold);
           margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;
         }
         .eyebrow::before { content: ''; display: inline-block; width: 30px; height: 1px; background: var(--gold); }
         .section-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(2rem, 4vw, 3.2rem);
+          font-size: clamp(1.62rem, 4vw, 2.62rem);
           font-weight: 300; line-height: 1.2; color: var(--white); margin-bottom: 2rem;
         }
         .section-title em { font-style: italic; color: var(--gold-light); }
-        .body-text { font-size: 0.88rem; line-height: 2; color: var(--cream-dim); margin-bottom: 2rem; }
+        .body-text { font-size: var(--text-base); line-height: 2; color: var(--cream-dim); margin-bottom: 2rem; }
 
         /* OVERVIEW */
         .overview {
@@ -253,9 +222,9 @@ export default function DestinationPage() {
         }
         .overview .eyebrow { justify-content: center; }
         .overview .eyebrow::before { display: none; }
-        .overview .body-text { font-size: 1.15rem; line-height: 2; }
+        .overview .body-text { font-size: var(--text-base); line-height: 2; }
         .enquire-btn {
-          font-family: 'Inter', sans-serif; font-size: 0.7rem;
+          font-family: 'Inter', sans-serif; font-size: var(--text-sm);
           letter-spacing: 0.22em; text-transform: uppercase;
           background: var(--gold); color: var(--dark);
           border: none; padding: 1rem 2.5rem; cursor: pointer; transition: background 0.3s;
@@ -282,7 +251,7 @@ export default function DestinationPage() {
           border-right: 1px solid rgba(201,168,76,0.08);
         }
         .itin-left-eyebrow {
-          font-size: 0.62rem; letter-spacing: 0.4em;
+          font-size: var(--text-xs); letter-spacing: 0.4em;
           text-transform: uppercase; color: var(--gold);
           margin-bottom: 1.5rem;
           display: flex; align-items: center; gap: 1rem;
@@ -291,19 +260,18 @@ export default function DestinationPage() {
           content: ''; width: 24px; height: 1px; background: var(--gold);
         }
         .itin-left-title {
-          font-family: 'Inter', sans-serif;
-          font-size: clamp(1.3rem, 2vw, 1.7rem);
-          font-weight: 600; color: var(--white);
-          text-transform: uppercase; letter-spacing: 0.06em;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(1.62rem, 2vw, var(--text-md));
+          font-weight: 300; color: var(--white);
           line-height: 1.3; margin-bottom: 1.5rem;
         }
         .itin-left-desc {
-          font-size: 0.85rem; line-height: 1.9;
+          font-size: var(--text-base); line-height: 1.9;
           color: var(--cream-dim); margin-bottom: 2.5rem;
         }
         .itin-left-cta {
           font-family: 'Inter', sans-serif;
-          font-size: 0.68rem; letter-spacing: 0.22em;
+          font-size: var(--text-sm); letter-spacing: 0.22em;
           text-transform: uppercase;
           background: var(--gold); color: var(--dark);
           border: none; padding: 0.9rem 2rem;
@@ -334,135 +302,179 @@ export default function DestinationPage() {
         }
         .itin-card-nights {
           position: absolute; top: 1.2rem; right: 1.2rem;
-          font-size: 0.62rem; letter-spacing: 0.25em;
+          font-size: var(--text-xs); letter-spacing: 0.25em;
           text-transform: uppercase; color: var(--white);
           font-family: 'Inter', sans-serif; font-weight: 500; z-index: 2;
         }
         .itin-card-bottom { position: absolute; bottom: 0; left: 0; right: 0; padding: 2rem 1.8rem; z-index: 2; }
         .itin-card-title {
           font-family: 'Inter', sans-serif;
-          font-size: 0.88rem; font-weight: 600;
+          font-size: var(--text-base); font-weight: 400;
           color: var(--white); text-transform: uppercase;
           letter-spacing: 0.05em; line-height: 1.4; margin-bottom: 1.2rem;
         }
         .itin-card-btn {
           display: inline-flex; align-items: center;
-          font-size: 0.65rem; letter-spacing: 0.2em;
+          font-size: var(--text-xs); letter-spacing: 0.2em;
           text-transform: uppercase; color: var(--white);
           border: 1px solid rgba(255,255,255,0.5);
           padding: 0.6rem 1.2rem; background: none;
-          cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif;
+          cursor: pointer; font-family: 'Inter', sans-serif;
+          transition: border-color 0.3s, color 0.3s;
+          position: relative; z-index: 4;
         }
         .itin-card-btn:hover { border-color: var(--gold); color: var(--gold); }
+        .itin-card-desc {
+          font-size: var(--text-base); line-height: 1.8;
+          color: var(--cream-dim); font-family: 'Inter', sans-serif; font-weight: 300;
+          max-height: 0; overflow: hidden;
+          opacity: 0; margin: 0;
+          transition: max-height 0.4s ease, opacity 0.4s ease, margin 0.4s ease;
+        }
+        .itin-card-v2:hover .itin-card-desc {
+          max-height: 120px; opacity: 1; margin: 0.8rem 0;
+        }
 
         /* SEE & DO */
         .see-do { padding: 0; background: var(--dark); }
-        .see-do-top {
-          padding: 3.5rem 5rem 2.5rem;
-          display: flex; flex-direction: column;
-          align-items: center; text-align: center;
+        .see-do-header {
+          padding: 4rem 5rem 3rem;
+          text-align: center;
           border-bottom: 1px solid rgba(201,168,76,0.08);
         }
+        .see-do-section-label {
+          font-size: var(--text-xs); letter-spacing: 0.45em;
+          text-transform: uppercase; color: var(--gold);
+          margin-bottom: 0.8rem; display: block;
+        }
         .see-do-main-title {
-          font-family: 'Inter', sans-serif;
-          font-size: clamp(1.4rem, 3vw, 2rem);
-          font-weight: 700; color: var(--white);
-          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1.2rem;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(1.62rem, 3vw, 2.62rem);
+          font-weight: 300; color: var(--white);
+          line-height: 1.2; margin-bottom: 1rem;
         }
         .see-do-main-sub {
-          font-size: 0.78rem; letter-spacing: 0.18em;
-          text-transform: uppercase; color: var(--cream-dim); line-height: 1.8;
+          font-size: var(--text-xs); letter-spacing: 0.1em;
+          text-transform: uppercase; color: var(--cream-dim);
+          line-height: 1.8; max-width: 680px; margin: 0 auto;
         }
-        .see-do-link { color: var(--white); text-decoration: underline; text-underline-offset: 3px; transition: color 0.3s; }
+        .see-do-link { color: var(--cream-dim); text-decoration: underline; text-underline-offset: 3px; transition: color 0.3s; }
         .see-do-link:hover { color: var(--gold); }
-        .see-do-split { display: grid; grid-template-columns: 1fr 1.4fr; min-height: 420px; }
-        .see-do-text {
-          display: flex; flex-direction: column; justify-content: center;
-          padding: 3.5rem 4rem; border-right: 1px solid rgba(201,168,76,0.08);
+        .see-do-hero {
+          position: relative; overflow: hidden;
+          aspect-ratio: 16/9; width: 100%;
+        }
+        .see-do-hero iframe {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%; border: none; display: block;
+        }
+        .see-do-facade {
+          position: absolute; inset: 0; cursor: pointer;
+        }
+        .see-do-facade-img {
+          width: 100%; height: 100%; object-fit: cover; display: block;
+        }
+        .see-do-play-btn {
+          position: absolute; top: 50%; left: 50%;
+          transform: translate(-50%, -50%);
+          width: 72px; height: 72px;
+          border-radius: 50%;
+          background: rgba(0,0,0,0.55);
+          border: 2px solid rgba(255,255,255,0.7);
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.3s, border-color 0.3s;
+        }
+        .see-do-facade:hover .see-do-play-btn {
+          background: var(--gold); border-color: var(--gold);
+        }
+        .see-do-play-icon {
+          width: 0; height: 0;
+          border-top: 12px solid transparent;
+          border-bottom: 12px solid transparent;
+          border-left: 20px solid #fff;
+          margin-left: 4px;
+        }
+        .see-do-hero-grad {
+          position: absolute; inset: 0; pointer-events: none;
+          background: linear-gradient(to bottom, rgba(8,8,8,0.3) 0%, rgba(8,8,8,0) 40%, rgba(8,8,8,0.6) 100%);
+        }
+        .see-do-hero-content {
+          position: absolute; inset: 0; pointer-events: none;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: flex-end;
+          text-align: center; padding: 0 2rem 4rem;
         }
         .see-do-inner-title {
-          font-family: 'Inter', sans-serif;
-          font-size: 1rem; font-weight: 700;
-          color: var(--white); text-transform: uppercase;
-          letter-spacing: 0.08em; margin-bottom: 1.2rem;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(2.62rem, 5vw, 4.24rem); font-weight: 300;
+          color: var(--white); margin-bottom: 1.5rem; line-height: 1.15;
         }
-        .see-do-body { font-size: 0.85rem; line-height: 1.9; color: var(--cream-dim); margin-bottom: 1.5rem; }
+        .see-do-body {
+          font-size: var(--text-base); line-height: 2; color: rgba(242,237,228,0.8);
+          max-width: 640px; margin-bottom: 2.5rem;
+          font-family: 'Inter', sans-serif; font-weight: 300;
+        }
         .see-do-enquire {
           font-family: 'Inter', sans-serif;
-          font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
-          background: var(--white); color: var(--dark);
-          border: none; padding: 0.85rem 1.8rem; cursor: pointer; transition: all 0.3s; width: fit-content;
+          font-size: var(--text-sm); letter-spacing: 0.22em; text-transform: uppercase;
+          background: transparent; color: var(--white);
+          border: 1px solid rgba(255,255,255,0.6); padding: 0.9rem 2.5rem;
+          cursor: pointer; transition: all 0.3s;
         }
-        .see-do-enquire:hover { background: var(--gold); color: var(--dark); }
-        .see-do-image { position: relative; overflow: hidden; }
-        .see-do-image img {
-          width: 100%; height: 100%; max-height: 420px; object-fit: cover; display: block; transition: transform 0.8s ease;
-        }
-        .see-do-image:hover img { transform: scale(1.03); }
+        .see-do-enquire:hover { border-color: var(--gold); color: var(--gold); }
 
-        /* EXPERIENCE GALLERY */
-        .exp-gallery {
-          padding: 4rem 5rem;
-          background: var(--dark-2);
-          border-top: 1px solid rgba(201,168,76,0.08);
-        }
-        .exp-gallery-title-row {
+        /* HOTELS */
+        .hotels { padding: 5rem 5rem 6rem; background: var(--dark); }
+        .hotels-header {
           text-align: center;
           margin-bottom: 3rem;
         }
-        .exp-gallery-label {
-          font-size: 0.62rem; letter-spacing: 0.45em;
-          text-transform: uppercase; color: var(--gold);
-          margin-bottom: 0.75rem; display: block;
-        }
-        .exp-gallery-heading {
+        .hotels-main-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.8rem, 3.5vw, 2.8rem);
-          font-weight: 300; color: var(--white); line-height: 1.2;
+          font-size: clamp(1.62rem, 3vw, 2.62rem);
+          font-weight: 300; color: var(--white);
+          margin-bottom: 2rem;
         }
-        .exp-gallery-heading em { font-style: italic; color: var(--gold-light); }
-        .exp-gallery-layout {
-          display: grid;
-          grid-template-columns: 1.15fr 1fr;
-          gap: 4rem;
-          align-items: center;
-          max-width: 1300px;
-          margin: 0 auto;
+        .hotels-tabs {
+          display: flex; align-items: center; justify-content: center; gap: 0;
+          border-bottom: 1px solid rgba(201,168,76,0.15);
+          margin-bottom: 3.5rem;
         }
-        .exp-gallery-img-wrap { overflow: hidden; }
-        .exp-gallery-img {
-          width: 100%;
-          aspect-ratio: 16/10;
-          object-fit: cover;
-          display: block;
-          background: #1a1a1a;
-          transition: transform 0.8s ease;
+        .hotels-tab {
+          font-family: 'Inter', sans-serif;
+          font-size: var(--text-sm); letter-spacing: 0.2em; text-transform: uppercase;
+          color: var(--cream-dim); background: none; border: none;
+          padding: 0.9rem 2rem; cursor: pointer; position: relative;
+          transition: color 0.3s;
         }
-        .exp-gallery-img-wrap:hover .exp-gallery-img { transform: scale(1.03); }
-        .exp-gallery-text-col { padding-right: 1rem; }
-        .exp-gallery-text-col .eyebrow { margin-bottom: 1rem; }
-        .exp-gallery-text-col .section-title { font-size: clamp(1.6rem, 2.8vw, 2.4rem); margin-bottom: 1.5rem; }
-        .exp-gallery-body {
-          font-size: 0.85rem; line-height: 2;
-          color: var(--cream-dim); margin-bottom: 2rem;
+        .hotels-tab::after {
+          content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+          height: 2px; background: var(--gold);
+          transform: scaleX(0); transition: transform 0.3s;
         }
-        .exp-gallery-link {
-          display: inline-flex; align-items: center; gap: 0.75rem;
-          font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase;
-          color: var(--gold); text-decoration: none; transition: gap 0.3s;
-        }
-        .exp-gallery-link:hover { gap: 1.25rem; }
-
-        /* HOTELS */
-        .hotels { padding: 7rem 5rem; background: var(--dark-2); }
-        .hotels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem; }
-        .hotel-card { position: relative; overflow: hidden; cursor: pointer; }
-        .hotel-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; transition: transform 0.6s ease; }
+        .hotels-tab:hover { color: var(--white); }
+        .hotels-tab.active { color: var(--white); }
+        .hotels-tab.active::after { transform: scaleX(1); }
+        .hotels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem; }
+        .hotel-card { cursor: pointer; }
+        .hotel-img-wrap { overflow: hidden; margin-bottom: 1.2rem; }
+        .hotel-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; transition: transform 0.6s ease; }
         .hotel-card:hover .hotel-img { transform: scale(1.04); }
-        .hotel-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,0.92) 0%, transparent 55%); }
-        .hotel-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.5rem; }
-        .hotel-tag { font-size: 0.58rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.3rem; }
-        .hotel-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 300; color: var(--white); }
+        .hotel-tag { font-size: var(--text-xs); letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
+        .hotel-name {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: var(--text-md); font-weight: 300;
+          color: var(--white); font-style: italic;
+          letter-spacing: 0.03em; margin-bottom: 0.8rem; line-height: 1.2;
+        }
+        .hotel-desc { font-size: var(--text-sm); line-height: 1.9; color: var(--cream-dim); margin-bottom: 1rem; font-weight: 300; }
+        .hotel-link {
+          font-size: var(--text-xs); letter-spacing: 0.2em; text-transform: uppercase;
+          color: var(--gold); text-decoration: underline; text-underline-offset: 4px;
+          transition: color 0.3s; background: none; border: none; cursor: pointer;
+          padding: 0; font-family: 'Inter', sans-serif;
+        }
+        .hotel-link:hover { color: var(--gold-light); }
 
         /* ENQUIRE BANNER */
         .enquire-banner {
@@ -470,47 +482,45 @@ export default function DestinationPage() {
           display: flex; align-items: center; justify-content: space-between;
           border-top: 1px solid rgba(201,168,76,0.1); border-bottom: 1px solid rgba(201,168,76,0.1);
         }
-        .enquire-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 300; color: var(--white); margin-bottom: 1rem; }
+        .enquire-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.62rem, 4vw, 2.62rem); font-weight: 300; color: var(--white); margin-bottom: 1rem; }
         .enquire-title em { font-style: italic; color: var(--gold-light); }
-        .enquire-sub { font-size: 0.85rem; line-height: 1.8; color: var(--cream-dim); max-width: 480px; }
+        .enquire-sub { font-size: var(--text-base); line-height: 1.8; color: var(--cream-dim); max-width: 480px; }
         .enquire-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 1rem; }
-        .btn-gold-lg { font-family: 'Inter', sans-serif; font-size: 0.7rem; letter-spacing: 0.25em; text-transform: uppercase; background: var(--gold); color: var(--dark); border: none; padding: 1.2rem 3rem; cursor: pointer; transition: background 0.3s; }
+        .btn-gold-lg { font-family: 'Inter', sans-serif; font-size: var(--text-sm); letter-spacing: 0.25em; text-transform: uppercase; background: var(--gold); color: var(--dark); border: none; padding: 1.2rem 3rem; cursor: pointer; transition: background 0.3s; }
         .btn-gold-lg:hover { background: var(--gold-light); }
-        .enquire-note { font-size: 0.65rem; letter-spacing: 0.1em; color: var(--cream-dim); }
+        .enquire-note { font-size: var(--text-xs); letter-spacing: 0.1em; color: var(--cream-dim); }
 
         /* MORE DESTINATIONS */
         .more-dest { padding: 7rem 5rem; }
-        .more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 3rem; }
-        .more-card { position: relative; overflow: hidden; cursor: pointer; text-decoration: none; display: block; }
-        .more-img { width: 100%; aspect-ratio: 3/2; object-fit: cover; display: block; transition: transform 0.6s ease; }
-        .more-card:hover .more-img { transform: scale(1.04); }
-        .more-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,0.85) 0%, transparent 60%); }
-        .more-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.5rem; }
-        .more-country { font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.3rem; }
-        .more-name { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 300; color: var(--white); }
-        .more-arrow { position: absolute; top: 1rem; right: 1rem; color: var(--gold); font-size: 1rem; opacity: 0; transform: translateX(-5px); transition: all 0.3s; }
-        .more-card:hover .more-arrow { opacity: 1; transform: translateX(0); }
+        .more-grid { display: flex; gap: 0.75rem; margin-top: 3rem; }
+        .more-card { position: relative; overflow: hidden; cursor: pointer; text-decoration: none; display: block; flex: 0 0 calc(20% - 0.6rem); aspect-ratio: 3/4; }
+        .more-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; position: absolute; inset: 0; }
+        .more-card:hover .more-img { transform: scale(1.05); }
+        .more-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.1) 55%); }
+        .more-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 1.4rem; }
+        .more-country { font-size: var(--text-xs); letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.3rem; }
+        .more-name { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 300; color: var(--white); }
+        .more-arrow { position: absolute; top: 1rem; right: 1rem; width: 32px; height: 32px; border: 1px solid rgba(201,168,76,0.4); display: flex; align-items: center; justify-content: center; color: var(--gold); opacity: 0; transform: translateY(-5px); transition: all 0.3s; }
+        .more-card:hover .more-arrow { opacity: 1; transform: translateY(0); }
 
         /* FOOTER */
         footer { background: var(--dark-2); border-top: 1px solid rgba(201,168,76,0.1); }
         .footer-main { padding: 5rem 5rem 3rem; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 3rem; }
-        .footer-logo { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 1rem; display: block; }
-        .footer-tagline { font-size: 0.8rem; line-height: 1.9; color: var(--cream-dim); max-width: 260px; }
-        .footer-col-title { font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.5rem; }
+        .footer-logo { font-family: 'Cormorant Garamond', serif; font-size: var(--text-md); font-weight: 300; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 1rem; display: block; }
+        .footer-tagline { font-size: var(--text-xs); line-height: 1.9; color: var(--cream-dim); max-width: 260px; }
+        .footer-col-title { font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.5rem; }
         .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.8rem; }
-        .footer-col ul a { font-size: 0.8rem; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
+        .footer-col ul a { font-size: var(--text-xs); color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
         .footer-col ul a:hover { color: var(--gold-light); }
         .footer-bottom { border-top: 1px solid rgba(201,168,76,0.08); padding: 1.5rem 5rem; display: flex; align-items: center; justify-content: space-between; }
-        .footer-copy { font-size: 0.65rem; color: var(--cream-dim); }
+        .footer-copy { font-size: var(--text-xs); color: var(--cream-dim); }
         .footer-bottom-links { display: flex; gap: 2rem; list-style: none; }
-        .footer-bottom-links a { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
+        .footer-bottom-links a { font-size: var(--text-xs); letter-spacing: 0.15em; text-transform: uppercase; color: var(--cream-dim); text-decoration: none; transition: color 0.3s; }
         .footer-bottom-links a:hover { color: var(--gold); }
 
         @keyframes fadeUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
 
         @media (max-width: 1024px) {
-          .navbar, .navbar.scrolled { padding: 1.2rem 2rem; }
-          .nav-links { display: none; }
           .hero-content { padding: 0 2rem 4rem; }
           .breadcrumb { padding: 1.2rem 2rem; }
           .section-nav-inner { justify-content: flex-start; overflow-x: auto; padding: 0 2rem; }
@@ -527,9 +537,10 @@ export default function DestinationPage() {
           .itin-cards-row { height: 460px; }
           .itin-card-v2 { flex: 0 0 260px; }
           .see-do-header { padding: 4rem 2rem 0; }
+          .see-do-header { padding: 3rem 2rem 2rem; }
           .see-do-split { grid-template-columns: 1fr; }
           .see-do-text { padding: 3rem 2rem; }
-          .see-do-image { min-height: 280px; }
+          .see-do-image { min-height: 320px; }
           .see-do-image::after { display: none; }
           .exp-gallery { padding: 3.5rem 2rem; }
           .exp-gallery-layout { grid-template-columns: 1fr; gap: 2.5rem; }
@@ -538,27 +549,13 @@ export default function DestinationPage() {
         }
       `}</style>
 
-      {/* NAVBAR */}
-      <nav className={`navbar ${scrollY > 60 ? "scrolled" : ""}`}>
-        <a href="/" className="nav-logo">
-          <img src="/images/navbar logo.png" alt="Samsara" style={{ height: "45px", width: "auto", objectFit: "contain" }} onError={(e) => (e.currentTarget.style.display = "none")} />
-        </a>
-        <ul className="nav-links">
-          <li><a href="/destinations-page">Destinations</a></li>
-          <li><a href="/#explore">Experiences</a></li>
-          <li><a href="/feeling-engine">Feelings Engine</a></li>
-          <li><a href="/#about">About</a></li>
-        </ul>
-        <button className="nav-cta">Enquire Now</button>
-      </nav>
-
       {/* HERO */}
       <section className="hero">
         <div className="hero-bg" style={{ backgroundImage: `url(${dest.heroImage})`, ["--scroll" as string]: `${scrollY}px` }} />
         <div className="hero-overlay" />
         <div className="hero-content">
           <p className="hero-country">{dest.country}</p>
-          <h1 className="hero-name">{dest.name}</h1>
+          <h1 className="hero-name">Luxury in {dest.name}</h1>
           <p className="hero-sinhala">{dest.sinhala}</p>
           <p className="hero-tagline">{dest.tagline}</p>
         </div>
@@ -624,6 +621,7 @@ export default function DestinationPage() {
                   <span className="itin-card-nights">{trip.nights}</span>
                   <div className="itin-card-bottom">
                     <h3 className="itin-card-title">{trip.title}</h3>
+                    <div className="itin-card-desc">{trip.desc}</div>
                     <button className="itin-card-btn">Explore Trip</button>
                   </div>
                 </div>
@@ -633,84 +631,80 @@ export default function DestinationPage() {
         </div>
       </section>
 
+
       {/* SEE & DO */}
       <section id="see-do" className="see-do">
-        <div className="see-do-top">
-          <h2 className="see-do-main-title">What to See and Do in {dest.name}</h2>
+        <div className="see-do-header">
+          <span className="see-do-section-label">See &amp; Do</span>
+          <h2 className="see-do-main-title">What to See and Do in <em>{dest.name}</em></h2>
           <p className="see-do-main-sub">
             Use the below as inspiration, then{" "}
             <a href="#" className="see-do-link">get in touch</a>{" "}
             to enquire about your dream {dest.name} holiday.
           </p>
         </div>
-        <div className="see-do-split">
-          <div className="see-do-text">
-            <h3 className="see-do-inner-title">Luxury in {dest.name}</h3>
-            <p className="see-do-body">{dest.about}</p>
-            <button className="see-do-enquire">Enquire</button>
-          </div>
-          <div className="see-do-image">
-            <img
-              src={dest.gallery[0]}
-              alt={`Experience ${dest.name}`}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.background = "linear-gradient(160deg,#1c1c1c,#111)";
-                (e.currentTarget as HTMLImageElement).removeAttribute("src");
-              }}
+        <div className="see-do-hero">
+          {videoPlaying ? (
+            <iframe
+              src="https://www.youtube.com/embed/jHV_9GBOf1s?autoplay=1&rel=0&modestbranding=1&start=1"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
             />
-          </div>
-        </div>
-      </section>
-
-      {/* EXPERIENCE GALLERY */}
-      <section className="exp-gallery">
-        <div className="exp-gallery-title-row">
-          <span className="exp-gallery-label">{dest.name} Activities</span>
-          <h2 className="exp-gallery-heading">
-            Experiences That <em>Define</em> {dest.name}
-          </h2>
-        </div>
-        <div className="exp-gallery-layout">
-          <div className="exp-gallery-img-wrap">
-            <img
-              src={dest.gallery[1]}
-              alt={`${dest.name} Activities`}
-              className="exp-gallery-img"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.background = "linear-gradient(160deg,#1c1c1c,#111)";
-                (e.currentTarget as HTMLImageElement).removeAttribute("src");
-              }}
-            />
-          </div>
-          <div className="exp-gallery-text-col">
-            <p className="eyebrow">The {dest.name} Experience</p>
-            <h3 className="section-title">
-              Life Lived <em>Fully.</em>
-            </h3>
-            <p className="exp-gallery-body">{dest.about}</p>
-            <a href="#" className="exp-gallery-link">Explore All Activities →</a>
-          </div>
+          ) : (
+            <div className="see-do-facade" onClick={() => setVideoPlaying(true)}>
+              <img
+                src="https://img.youtube.com/vi/jHV_9GBOf1s/3.jpg"
+                alt="Play video"
+                className="see-do-facade-img"
+              />
+              <div className="see-do-hero-grad" />
+              <div className="see-do-hero-content">
+                <h3 className="see-do-inner-title" style={{ pointerEvents: 'none' }}>Seek Authenticity.<br />The Culture. The People.</h3>
+                <button className="see-do-enquire" style={{ pointerEvents: 'none' }}>Begin Your Journey</button>
+              </div>
+              <div className="see-do-play-btn">
+                <div className="see-do-play-icon" />
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
       {/* HOTELS */}
       <section id="hotels" className="hotels">
-        <p className="eyebrow">Where to Stay</p>
-        <h2 className="section-title">Hotels in <em>{dest.name}</em></h2>
+        <div className="hotels-header">
+          <h2 className="hotels-main-title">Best Hotels</h2>
+        </div>
         <div className="hotels-grid">
           {[
-            { tag: "Boutique", name: "The Fort Residency", image: dest.gallery[0] },
-            { tag: "Luxury",   name: "Amangalla",          image: dest.gallery[1] },
-            { tag: "Heritage", name: "Cape Weligama",      image: dest.gallery[2] },
+            {
+              tag: "Boutique",
+              name: "The Fort Residency",
+              image: "/images/hotels/the-fort-recidency.webp",
+              desc: `Tucked within the ancient walls of ${dest.name} Fort, this intimate boutique hotel blends colonial charm with refined comfort. A quiet retreat in the heart of the old city.`
+            },
+            {
+              tag: "Luxury Resort",
+              name: "Cape Weligama",
+              image: "/images/hotels/cape-waligma.webp",
+              desc: `Perched on a dramatic clifftop overlooking the Indian Ocean, Cape Weligama is a stunning resort offering breathtaking panoramic views and world-class amenities.`
+            },
+            {
+              tag: "Heritage",
+              name: "Amangalla",
+              image: "/images/hotels/amangalla.webp",
+              desc: `An iconic hotel nestled within one of ${dest.name}'s UNESCO World Heritage Sites. A peaceful, beautifully restored colonial landmark of rare distinction.`
+            },
           ].map((hotel, i) => (
             <div className="hotel-card" key={i}>
-              <img src={hotel.image} alt={hotel.name} className="hotel-img"
-                onError={(e) => { e.currentTarget.style.display = "none"; }} />
-              <div className="hotel-grad" />
-              <div className="hotel-info">
-                <p className="hotel-tag">{hotel.tag}</p>
-                <h3 className="hotel-name">{hotel.name}</h3>
+              <div className="hotel-img-wrap">
+                <img src={hotel.image} alt={hotel.name} className="hotel-img"
+                  onError={(e) => { e.currentTarget.style.display = "none"; }} />
               </div>
+              <p className="hotel-tag">{hotel.tag}</p>
+              <h3 className="hotel-name">{hotel.name}</h3>
+              <p className="hotel-desc">{hotel.desc}</p>
+              <button className="hotel-link">View Hotel</button>
             </div>
           ))}
         </div>
@@ -740,7 +734,7 @@ export default function DestinationPage() {
               <img src={m.image} alt={m.name} className="more-img"
                 onError={(e) => { e.currentTarget.style.display = "none"; }} />
               <div className="more-grad" />
-              <span className="more-arrow">→</span>
+              <div className="more-arrow">↗</div>
               <div className="more-info">
                 <p className="more-country">{m.country}</p>
                 <h3 className="more-name">{m.name}</h3>

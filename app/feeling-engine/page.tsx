@@ -23,14 +23,6 @@ Rules:
 - Keep HIGHLIGHT under 30 words.
 - If they mention a duration, use it. Otherwise choose the best duration.`;
 
-const suggestions: string[] = [
-  "I want to disappear into the jungle for a week",
-  "Something spiritual and slow, just me and the mountains",
-  "A honeymoon that feels like a dream we never wake from",
-  "Wild nature, no crowds, complete silence",
-  "I want to feel transformed by ancient history",
-  "10 days somewhere no tourist has ever been",
-];
 
 type JourneyData = {
   title: string;
@@ -124,7 +116,7 @@ export default function FeelingEngine() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@200;300;400;500;600&display=swap');
 
         :root {
           --gold: #C9A84C;
@@ -134,161 +126,113 @@ export default function FeelingEngine() {
           --cream: #F2EDE4;
           --cream-dim: #a89f92;
           --white: #ffffff;
+          --text-xs: 0.62rem;
+          --text-sm: 0.68rem;
+          --text-base: 1rem;
+          --text-md: 1.62rem;
+          --text-lg: 2.62rem;
+          --text-xl: 4.24rem;
         }
 
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; overflow: hidden; }
+        html { height: 100%; }
         body {
           background: var(--dark);
           color: var(--cream);
           font-family: 'Inter', sans-serif;
           font-weight: 300;
-        }
-
-        /* BACKGROUND */
-        .bg-layer { position: fixed; inset: 0; z-index: 0; }
-        .bg-img {
-          position: absolute; inset: 0;
-          width: 100%; height: 100%; object-fit: cover;
-        }
-        .bg-overlay {
-          position: absolute; inset: 0; z-index: 1;
-          background: linear-gradient(
-            to bottom,
-            rgba(8,8,8,0.55) 0%,
-            rgba(8,8,8,0.3) 30%,
-            rgba(8,8,8,0.85) 100%
-          );
-        }
-        .bg-grain {
-          position: absolute; inset: 0; z-index: 2;
-          opacity: 0.035; pointer-events: none;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-          background-size: 200px;
+          min-height: 100vh;
         }
 
         /* NAVBAR */
-        .navbar {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-          padding: 2rem 5rem;
-          display: flex; align-items: center; justify-content: space-between;
-        }
-        .nav-logo { display: flex; align-items: center; text-decoration: none; }
-        .nav-logo img { height: 45px; width: auto; }
-        .nav-back {
-          font-size: 0.68rem; letter-spacing: 0.22em;
-          text-transform: uppercase; color: rgba(255,255,255,0.55);
-          text-decoration: none; transition: color 0.3s;
-        }
-        .nav-back:hover { color: var(--gold); }
-
-        /* PAGE LAYOUT */
+        /* PAGE */
         .page {
-          position: fixed; inset: 0; z-index: 10;
+          min-height: 100vh;
           display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          padding: 6rem 2rem 2rem;
+          align-items: center;
+          padding-top: 110px;
+          background: var(--dark);
         }
         .page.has-result {
-          justify-content: flex-start;
-          padding-top: 8rem;
-          overflow-y: auto;
+          padding-bottom: 4rem;
         }
 
-        /* TOP SECTION */
-        .top-section {
+        /* HERO SECTION */
+        .hero-section {
           display: flex; flex-direction: column;
           align-items: center; text-align: center;
-          width: 100%; max-width: 760px;
-          transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
+          width: 100%; padding: 3rem 2rem 0;
+          transition: all 0.5s ease;
         }
-        .top-section.compact { margin-bottom: 1.5rem; }
-
-        .engine-eyebrow {
-          font-size: 0.62rem; letter-spacing: 0.5em;
-          text-transform: uppercase; color: var(--gold);
-          margin-bottom: 1.5rem;
-          display: flex; align-items: center; gap: 1.2rem;
-          animation: fadeUp 1s ease both;
-        }
-        .engine-eyebrow::before, .engine-eyebrow::after {
-          content: ''; height: 1px; width: 50px;
-        }
-        .engine-eyebrow::before {
-          background: linear-gradient(to right, transparent, rgba(201,168,76,0.6));
-        }
-        .engine-eyebrow::after {
-          background: linear-gradient(to left, transparent, rgba(201,168,76,0.6));
-        }
+        .hero-section.compact { padding-top: 1rem; }
 
         .engine-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(2.8rem, 6vw, 5.5rem);
+          font-size: clamp(2rem, 5vw, 3.5rem);
           font-weight: 300; color: var(--white);
-          line-height: 1.05; margin-bottom: 1rem;
-          animation: fadeUp 1s 0.15s ease both;
-          letter-spacing: 0.01em;
-          transition: font-size 0.5s ease;
+          letter-spacing: 0.18em; text-transform: uppercase;
+          margin-bottom: 2.5rem;
+          animation: fadeUp 0.8s ease both;
         }
-        .top-section.compact .engine-title {
-          font-size: clamp(1.8rem, 3vw, 2.8rem);
-          margin-bottom: 0.5rem;
+        .hero-section.compact .engine-title {
+          font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+          margin-bottom: 1rem;
         }
-        .engine-title em { font-style: italic; color: var(--gold-light); }
 
-        .engine-sub {
-          font-size: 0.82rem; color: rgba(255,255,255,0.5);
-          margin-bottom: 3rem;
-          animation: fadeUp 1s 0.3s ease both;
-          max-width: 460px; line-height: 1.9;
+        /* ILLUSTRATION */
+        .illustration-wrap {
+          width: 220px; height: auto;
+          margin-bottom: 2.5rem;
+          animation: fadeUp 0.8s 0.15s ease both;
           transition: all 0.5s ease;
         }
-        .top-section.compact .engine-sub { display: none; }
+        .hero-section.compact .illustration-wrap {
+          width: 100px;
+          margin-bottom: 1.2rem;
+        }
+        .illustration-wrap img {
+          width: 100%; height: auto; display: block;
+        }
 
         /* INPUT */
         .input-section {
-          width: 100%; max-width: 760px;
-          animation: fadeUp 1s 0.5s ease both;
+          width: 100%; max-width: 680px;
+          padding: 0 2rem;
+          animation: fadeUp 0.8s 0.3s ease both;
         }
 
-        .input-box {
+        .input-bar {
           position: relative;
-          background: rgba(8,8,8,0.4);
-          border: 1px solid rgba(255,255,255,0.15);
-          backdrop-filter: blur(20px);
-          transition: border-color 0.3s;
-          border-radius: 16px;
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.25);
+          border-radius: 50px;
           overflow: hidden;
+          transition: border-color 0.3s;
         }
-        .input-box:focus-within {
-          border-color: rgba(201,168,76,0.5);
+        .input-bar:focus-within {
+          border-color: rgba(201,168,76,0.6);
         }
 
-        .prompt-textarea {
+        .prompt-input {
           width: 100%;
           background: transparent; border: none; outline: none;
           color: var(--white);
-          font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1rem, 2vw, 1.3rem);
-          font-weight: 300; font-style: italic;
-          padding: 1.5rem 5rem 1.5rem 1.8rem;
-          resize: none; line-height: 1.6;
-          min-height: 70px;
-          border-radius: 16px;
+          font-family: 'Inter', sans-serif;
+          font-size: 0.9rem; font-weight: 300;
+          padding: 1.1rem 4rem 1.1rem 2rem;
+          line-height: 1.5;
         }
-        .prompt-textarea::placeholder {
+        .prompt-input::placeholder {
           color: rgba(255,255,255,0.3);
-          font-style: italic;
         }
 
         .send-btn {
-          position: absolute; right: 1.2rem; bottom: 1.2rem;
+          position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
           background: var(--gold); border: none;
-          width: 40px; height: 40px;
+          width: 38px; height: 38px; border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: background 0.3s;
           color: var(--dark); font-size: 1rem;
-          border-radius: 4px;
         }
         .send-btn:hover { background: var(--gold-light); }
         .send-btn:disabled {
@@ -298,20 +242,23 @@ export default function FeelingEngine() {
 
         /* SUGGESTIONS */
         .suggestions {
-          display: flex; gap: 0.6rem;
-          flex-wrap: wrap; margin-top: 1rem;
+          display: flex; gap: 0.5rem;
+          flex-wrap: wrap; margin-top: 1.2rem;
           justify-content: center;
+          padding: 0 2rem;
+          max-width: 680px;
+          width: 100%;
+          animation: fadeUp 0.8s 0.45s ease both;
         }
         .suggestion-chip {
-          font-size: 0.72rem; letter-spacing: 0.04em;
-          color: rgba(255,255,255,0.45);
+          font-size: 0.68rem; letter-spacing: 0.04em;
+          color: rgba(255,255,255,0.4);
           background: rgba(255,255,255,0.04);
           border: 1px solid rgba(255,255,255,0.08);
-          padding: 0.45rem 1rem;
+          padding: 0.4rem 0.9rem;
           cursor: pointer; transition: all 0.3s;
-          backdrop-filter: blur(8px);
           font-family: 'Inter', sans-serif;
-          border-radius: 4px;
+          border-radius: 20px;
         }
         .suggestion-chip:hover {
           color: var(--white);
@@ -321,14 +268,16 @@ export default function FeelingEngine() {
 
         /* RESULT PANEL */
         .result-panel {
-          width: 100%; max-width: 1100px;
-          margin-top: 2rem;
-          background: linear-gradient(135deg, rgba(8,8,8,0.95), rgba(15,12,5,0.95));
-          backdrop-filter: blur(28px);
+          width: 100%; max-width: 1000px;
+          margin-top: 2.5rem;
+          padding: 0 2rem;
+          animation: fadeUp 0.5s ease both;
+        }
+        .result-inner {
+          background: linear-gradient(135deg, rgba(15,12,5,0.98), rgba(8,8,8,0.98));
           border: 1px solid rgba(201,168,76,0.18);
           padding: 2.5rem 3rem;
-          animation: fadeUp 0.5s ease both;
-          border-radius: 12px;
+          border-radius: 8px;
         }
 
         /* LOADING */
@@ -338,7 +287,7 @@ export default function FeelingEngine() {
         }
         .loading-text {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.1rem; font-weight: 300;
+          font-size: var(--text-base); font-weight: 300;
           color: var(--cream-dim); font-style: italic;
         }
         .loading-dots { display: flex; gap: 0.4rem; align-items: center; }
@@ -357,7 +306,7 @@ export default function FeelingEngine() {
           gap: 3rem;
         }
         .journey-meta {
-          font-size: 0.6rem; letter-spacing: 0.38em;
+          font-size: var(--text-xs); letter-spacing: 0.38em;
           text-transform: uppercase; color: var(--gold);
           margin-bottom: 0.7rem;
           display: flex; align-items: center; gap: 0.75rem;
@@ -367,45 +316,42 @@ export default function FeelingEngine() {
         }
         .journey-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.8rem, 3vw, 2.8rem);
+          font-size: clamp(1.62rem, 3vw, 2.62rem);
           font-weight: 300; color: var(--white);
           line-height: 1.1; margin-bottom: 0.5rem;
         }
         .journey-tagline {
-          font-size: 0.82rem; color: var(--cream-dim);
+          font-size: var(--text-base); color: var(--cream-dim);
           font-style: italic; margin-bottom: 1.2rem; line-height: 1.7;
         }
         .journey-desc {
-          font-size: 0.85rem; line-height: 1.9;
+          font-size: var(--text-base); line-height: 1.9;
           color: rgba(255,255,255,0.65);
         }
         .highlight-label {
-          font-size: 0.58rem; letter-spacing: 0.3em;
+          font-size: var(--text-xs); letter-spacing: 0.3em;
           text-transform: uppercase; color: var(--gold);
           margin-bottom: 0.7rem;
         }
         .highlight-text {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.05rem; font-weight: 300;
+          font-size: var(--text-base); font-weight: 300;
           color: var(--white); line-height: 1.7;
           font-style: italic;
           border-left: 1px solid rgba(201,168,76,0.4);
           padding-left: 1.2rem;
           margin-bottom: 1.5rem;
         }
-        .days-wrap {
-          display: flex; align-items: baseline; gap: 0.4rem;
-        }
+        .days-wrap { display: flex; align-items: baseline; gap: 0.4rem; }
         .days-num {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 2.5rem; font-weight: 300;
+          font-size: var(--text-lg); font-weight: 300;
           color: var(--gold-light); line-height: 1;
         }
         .days-label {
-          font-size: 0.62rem; letter-spacing: 0.25em;
+          font-size: var(--text-xs); letter-spacing: 0.25em;
           text-transform: uppercase; color: var(--cream-dim);
         }
-
         .journey-footer {
           display: flex; align-items: center;
           justify-content: space-between;
@@ -415,7 +361,7 @@ export default function FeelingEngine() {
         }
         .journey-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; }
         .journey-tag {
-          font-size: 0.58rem; letter-spacing: 0.12em;
+          font-size: var(--text-xs); letter-spacing: 0.12em;
           text-transform: uppercase;
           color: var(--dark); background: var(--gold);
           padding: 0.28rem 0.75rem;
@@ -423,7 +369,7 @@ export default function FeelingEngine() {
         .footer-actions { display: flex; gap: 1rem; align-items: center; }
         .btn-enquire {
           font-family: 'Inter', sans-serif;
-          font-size: 0.68rem; letter-spacing: 0.22em;
+          font-size: var(--text-sm); letter-spacing: 0.22em;
           text-transform: uppercase;
           background: var(--gold); color: var(--dark);
           border: none; padding: 0.85rem 2rem;
@@ -431,15 +377,14 @@ export default function FeelingEngine() {
         }
         .btn-enquire:hover { background: var(--gold-light); }
         .btn-reset {
-          font-size: 0.62rem; letter-spacing: 0.2em;
+          font-size: var(--text-xs); letter-spacing: 0.2em;
           text-transform: uppercase; color: var(--cream-dim);
           background: none; border: none; cursor: pointer;
           transition: color 0.3s; font-family: 'Inter', sans-serif;
         }
         .btn-reset:hover { color: var(--white); }
-
         .user-prompt-display {
-          font-size: 0.75rem; color: rgba(255,255,255,0.35);
+          font-size: var(--text-xs); color: rgba(255,255,255,0.35);
           font-style: italic; margin-bottom: 1.5rem;
           padding-bottom: 1.5rem;
           border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -456,66 +401,44 @@ export default function FeelingEngine() {
         }
 
         @media (max-width: 768px) {
-          .navbar { padding: 1.5rem 2rem; }
-          .page { padding: 5rem 1.5rem 1.5rem; }
           .journey-grid { grid-template-columns: 1fr; gap: 1.5rem; }
-          .result-panel { padding: 1.5rem; }
+          .result-inner { padding: 1.5rem; }
           .journey-footer { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
 
-      {/* BACKGROUND */}
-      <div className="bg-layer">
-        <img
-          src="/images/feeling-bg.webp"
-          alt="Sri Lanka"
-          className="bg-img"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
-        <div className="bg-overlay" />
-        <div className="bg-grain" />
-      </div>
-
-      {/* NAVBAR */}
-      <nav className="navbar">
-        <a href="/" className="nav-logo">
-          <img
-            src="/images/navbar logo.png"
-            alt="Samsara"
-            style={{ height: "45px", width: "auto" }}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
-        </a>
-        <a href="/" className="nav-back">← Back to Samsara</a>
-      </nav>
 
       {/* MAIN */}
       <div className={`page ${submitted ? "has-result" : ""}`}>
 
-        {/* TOP */}
-        <div className={`top-section ${submitted ? "compact" : ""}`}>
-          <p className="engine-eyebrow">The Feeling Engine</p>
-          <h1 className="engine-title">
-            How do you want<br />to <em>feel?</em>
-          </h1>
-          <p className="engine-sub">
-            Don&apos;t search for a destination. Tell us how you want to feel — in your own words —
-            and our AI will design a Sri Lanka journey around that feeling alone.
-          </p>
+        {/* HERO */}
+        <div className={`hero-section ${submitted ? "compact" : ""}`}>
+          <h1 className="engine-title">The Feelings Engine</h1>
+
+          {!submitted && (
+            <div className="illustration-wrap">
+              <img
+                src="/images/feelings_engine.png"
+                alt="Sri Lanka"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
+          )}
         </div>
 
         {/* INPUT */}
         <div className="input-section">
-          <div className="input-box">
+          <div className="input-bar">
             <textarea
               ref={textareaRef}
-              className="prompt-textarea"
+              className="prompt-input"
               placeholder="I want to feel completely lost in nature, somewhere ancient and untouched…"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              rows={2}
+              rows={1}
               disabled={loading}
+              style={{ resize: "none" }}
             />
             <button
               className="send-btn"
@@ -525,81 +448,66 @@ export default function FeelingEngine() {
               →
             </button>
           </div>
-
-          {/* SUGGESTIONS — only show before submit */}
-          {!submitted && (
-            <div className="suggestions">
-              {suggestions.map((s: string, i: number) => (
-                <button
-                  key={i}
-                  className="suggestion-chip"
-                  onClick={() => {
-                    setPrompt(s);
-                    setTimeout(() => textareaRef.current?.focus(), 50);
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
+
 
         {/* RESULT */}
         {submitted && (
           <div className="result-panel">
-            {loading && (
-              <div className="loading-state">
-                <p className="loading-text">Curating your journey</p>
-                <div className="loading-dots">
-                  <div className="loading-dot" />
-                  <div className="loading-dot" />
-                  <div className="loading-dot" />
-                </div>
-              </div>
-            )}
-
-            {!loading && journey && (
-              <>
-                <p className="user-prompt-display">
-                  You said: <span>&ldquo;{prompt}&rdquo;</span>
-                </p>
-                <div className="journey-grid">
-                  <div>
-                    <p className="journey-meta">{journey.days} Days · Sri Lanka</p>
-                    <h2 className="journey-title">{journey.title}</h2>
-                    <p className="journey-tagline">{journey.tagline}</p>
-                    <p className="journey-desc">{journey.description}</p>
+            <div className="result-inner">
+              {loading && (
+                <div className="loading-state">
+                  <p className="loading-text">Curating your journey</p>
+                  <div className="loading-dots">
+                    <div className="loading-dot" />
+                    <div className="loading-dot" />
+                    <div className="loading-dot" />
                   </div>
-                  <div>
-                    <p className="highlight-label">Defining Moment</p>
-                    <p className="highlight-text">{journey.highlight}</p>
-                    <div className="days-wrap">
-                      <span className="days-num">{journey.days}</span>
-                      <span className="days-label">Days</span>
+                </div>
+              )}
+
+              {!loading && journey && (
+                <>
+                  <p className="user-prompt-display">
+                    You said: <span>&ldquo;{prompt}&rdquo;</span>
+                  </p>
+                  <div className="journey-grid">
+                    <div>
+                      <p className="journey-meta">{journey.days} Days · Sri Lanka</p>
+                      <h2 className="journey-title">{journey.title}</h2>
+                      <p className="journey-tagline">{journey.tagline}</p>
+                      <p className="journey-desc">{journey.description}</p>
+                    </div>
+                    <div>
+                      <p className="highlight-label">Defining Moment</p>
+                      <p className="highlight-text">{journey.highlight}</p>
+                      <div className="days-wrap">
+                        <span className="days-num">{journey.days}</span>
+                        <span className="days-label">Days</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="journey-footer">
-                  <div className="journey-tags">
-                    {journey.destinations.map((d: string, i: number) => (
-                      <span className="journey-tag" key={i}>{d}</span>
-                    ))}
+                  <div className="journey-footer">
+                    <div className="journey-tags">
+                      {journey.destinations.map((d: string, i: number) => (
+                        <span className="journey-tag" key={i}>{d}</span>
+                      ))}
+                    </div>
+                    <div className="footer-actions">
+                      <button className="btn-enquire">Enquire About This Journey</button>
+                      <button className="btn-reset" onClick={handleReset}>✕ Start Over</button>
+                    </div>
                   </div>
-                  <div className="footer-actions">
-                    <button className="btn-enquire">Enquire About This Journey</button>
-                    <button className="btn-reset" onClick={handleReset}>✕ Start Over</button>
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
 
-            {!loading && error && (
-              <div className="loading-state">
-                <p className="loading-text">Something went wrong. Please try again.</p>
-                <button className="btn-reset" onClick={handleReset}>Try Again</button>
-              </div>
-            )}
+              {!loading && error && (
+                <div className="loading-state">
+                  <p className="loading-text">Something went wrong. Please try again.</p>
+                  <button className="btn-reset" onClick={handleReset}>Try Again</button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
