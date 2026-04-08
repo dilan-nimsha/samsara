@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #C9A84C;
+  --gold-light: #E2C97E;
+  --dark: #0D0D0D;
+  --dark-2: #141414;
+  --dark-3: #1A1A1A;
+  --border: rgba(255,255,255,0.06);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,0.5);
+  --text-muted: rgba(255,255,255,0.25);
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--dark); color: var(--text-primary); }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(201,168,76,0.4); }
+
+input, textarea, select, button { font-family: 'Inter', sans-serif; }
+a { text-decoration: none; }
