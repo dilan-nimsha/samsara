@@ -344,22 +344,34 @@ export default function RegionPage() {
           justify-content: center;
         }
         .inspo-row-tag {
-          font-size: 0.55rem; letter-spacing: 0.3em; text-transform: uppercase;
+          font-size: var(--text-xs); letter-spacing: 0.3em; text-transform: uppercase;
           color: var(--gold);
           display: inline-flex; align-items: center; gap: 0.6rem;
         }
         .inspo-row-tag::before { content: ''; width: 20px; height: 1px; background: var(--gold); }
         .inspo-row-caption {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(1.1rem, 1.8vw, 1.6rem);
+          font-size: clamp(1.62rem, 2.8vw, 2.62rem);
           font-weight: 300; font-style: italic;
-          color: var(--white); line-height: 1.35;
+          color: var(--white); line-height: 1.3;
         }
         .inspo-row-body {
-          font-family: 'Inter', sans-serif; font-size: 0.88rem;
-          font-weight: 300; line-height: 1.9;
-          color: rgba(242,237,228,0.6);
-          max-width: 38ch;
+          font-family: 'Inter', sans-serif; font-size: var(--text-base);
+          font-weight: 300; line-height: 2;
+          color: rgba(242,237,228,0.55);
+          max-width: 34ch;
+        }
+        .inspo-row-text.align-right {
+          text-align: right; align-items: flex-end;
+        }
+        .inspo-row-text.align-right .inspo-row-tag {
+          flex-direction: row-reverse;
+        }
+        .inspo-row-text.align-right .inspo-row-tag::before {
+          display: none;
+        }
+        .inspo-row-text.align-right .inspo-row-tag::after {
+          content: ''; width: 20px; height: 1px; background: var(--gold);
         }
 
         /* TESTIMONIALS */
@@ -523,9 +535,13 @@ export default function RegionPage() {
             <div key={i} className="inspo-row">
               {i === 0 ? (
                 <>
-                  <div className="inspo-row-text">
-                    <p className="inspo-row-tag">{inspo.tag}</p>
-                    <p className="inspo-row-caption">{inspo.caption}</p>
+                  <div className="inspo-row-text align-right">
+                    {inspo.tag && <p className="inspo-row-tag">{inspo.tag}</p>}
+                    <p className="inspo-row-caption">
+                      {inspo.caption.includes(' — ')
+                        ? <>{inspo.caption.split(' — ')[0]}<br /><em>{inspo.caption.split(' — ')[1]}</em></>
+                        : inspo.caption}
+                    </p>
                     <p className="inspo-row-body">
                       Sri Lanka's {inspo.tag} is a place of quiet wonder — where every detail, every light, every moment tells a story worth living slowly.
                     </p>
@@ -550,8 +566,12 @@ export default function RegionPage() {
                     />
                   </div>
                   <div className="inspo-row-text">
-                    <p className="inspo-row-tag">{inspo.tag}</p>
-                    <p className="inspo-row-caption">{inspo.caption}</p>
+                    {inspo.tag && <p className="inspo-row-tag">{inspo.tag}</p>}
+                    <p className="inspo-row-caption">
+                      {inspo.caption.includes(' — ')
+                        ? <>{inspo.caption.split(' — ')[0]}<br /><em>{inspo.caption.split(' — ')[1]}</em></>
+                        : inspo.caption}
+                    </p>
                     <p className="inspo-row-body">
                       Sri Lanka's {inspo.tag} is a place of quiet wonder — where every detail, every light, every moment tells a story worth living slowly.
                     </p>

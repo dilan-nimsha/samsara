@@ -41,7 +41,7 @@ export const regions: Region[] = [
   {
     slug: "the-south",
     label: "The South",
-    heroImage: "/images/dest-1.webp",
+    heroImage: "/images/the-south.webp",
     description: "Ancient forts, whale watching & golden shores",
     about: "Sri Lanka's southern coast is a world of contrasts — colonial forts rising above the Indian Ocean, pristine beaches stretching for miles, and warm turquoise waters hiding vibrant coral reefs. This is where history meets paradise.",
     destinations: [
@@ -84,8 +84,8 @@ export const regions: Region[] = [
       },
     ],
     inspirations: [
-      { image: "/images/theSouth_2.webp", caption: "Yoga at dawn on the clifftops above the Indian Ocean", tag: "Weligama" },
-      { image: "/images/theSouth_1.webp", caption: "The lighthouse at Galle Point at golden hour — a moment that stops time", tag: "Galle" },
+      { image: "/images/theSouth_1.webp", caption: "Surrender to the flow", tag: "" },
+      { image: "/images/theSouth_2.webp", caption: "Two souls — One Love", tag: "" },
       { image: "/images/galle-trip-4.webp", caption: "Ancient monks, silent courtyards, and the weight of centuries", tag: "The South" },
       { image: "/images/galle-trip-5.webp", caption: "A lone palm over still water — the south coast at its most intimate", tag: "Tangalle" },
     ],
