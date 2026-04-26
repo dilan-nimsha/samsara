@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \" import json, sys with open\\('/c/Users/PROTECH/.claude/projects/c--Users-PROTECH-Documents-app-samsara-backend-samsara-rms/478beda4-f469-44df-ac15-d99d50c2be71.jsonl'\\) as f: lines = f.readlines\\(\\) for line in lines: try: obj = json.loads\\(line\\) msg = obj.get\\('message', {}\\) role = msg.get\\('role', ''\\) if role == 'user': content = msg.get\\('content', ''\\) if isinstance\\(content, list\\): for block in content: if isinstance\\(block, dict\\) and block.get\\('type'\\) == 'text': text = block.get\\('text', ''\\) if 'table' in text.lower\\(\\): print\\('USER:', text[:300]\\) print\\('---'\\) elif isinstance\\(content, str\\) and 'table' in content.lower\\(\\): print\\('USER:', content[:300]\\) print\\('---'\\) except: pass \")",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

@@ -2,7 +2,7 @@ import TopNav from '@/components/layout/TopNav';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#F7F7F7' }}>
+    <div style={{ minHeight: '100vh' }}>
       <TopNav />
       <main style={{ paddingTop: 48 }}>
         {children}
