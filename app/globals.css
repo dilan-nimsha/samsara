@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Golden Ratio Type Scale (φ = 1.618) */
+  --text-xs:   0.62rem;   /* φ⁻¹  — labels, eyebrows       */
+  --text-sm:   0.68rem;   /* —    — buttons                 */
+  --text-base: 1rem;      /* φ⁰   — body text               */
+  --text-md:   1.62rem;   /* φ¹   — card titles, sub heads  */
+  --text-lg:   2.62rem;   /* φ²   — section headings        */
+  --text-xl:   4.24rem;   /* φ³   — hero headings           */
+  --text-2xl:  6.85rem;   /* φ⁴   — large display           */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+@font-face {
+  font-family: 'PWN-Pawana';
+  src: url('/fonts/PWN-Pawana.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), 'Inter', sans-serif;
+}
