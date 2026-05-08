@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from '@/lib/toast';
 import {
   Inbox, Send, FileText, Star, AlertOctagon,
   Trash2, Archive, Tag, RefreshCw, Pencil,
-  Paperclip, ChevronDown,
+  Paperclip, ChevronDown, X,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -484,21 +485,81 @@ const LABELS = [
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const [folder, setFolder]   = useState('inbox');
-  const [selected, setSelected] = useState<Email | null>(FOLDER_DATA.inbox[0]);
-  const [labelsOpen, setLabelsOpen] = useState(true);
+  const [folder,       setFolder]       = useState('inbox');
+  const [selected,     setSelected]     = useState<Email | null>(FOLDER_DATA.inbox[0]);
+  const [labelsOpen,   setLabelsOpen]   = useState(true);
+  const [activeLabel,  setActiveLabel]  = useState<string | null>(null);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [replyText,    setReplyText]    = useState('');
+  const [showCompose,  setShowCompose]  = useState(false);
+  const [compose,      setCompose]      = useState({ to: '', subject: '', body: '' });
+  const [sentEmails,   setSentEmails]   = useState<Email[]>(FOLDER_DATA.sent ?? []);
 
-  const emails = FOLDER_DATA[folder] ?? [];
+  const rawEmails = folder === 'sent' ? sentEmails : (FOLDER_DATA[folder] ?? []);
+  const emails = activeLabel
+    ? rawEmails.filter(e => e.tag?.toLowerCase() === activeLabel)
+    : rawEmails;
 
   function openFolder(key: string) {
     setFolder(key);
-    setSelected(FOLDER_DATA[key]?.[0] ?? null);
+    setActiveLabel(null);
+    setSelected((key === 'sent' ? sentEmails : FOLDER_DATA[key])?.[0] ?? null);
   }
 
-  const unreadCount = (FOLDER_DATA[folder] ?? []).filter(e => e.unread).length;
+  function handleLabelClick(key: string) {
+    const label = LABELS.find(l => l.key === key);
+    if (activeLabel === key) {
+      setActiveLabel(null);
+      toast.info('Label filter cleared');
+    } else {
+      setActiveLabel(key);
+      toast.info(`Showing "${label?.label}" emails`);
+    }
+    setSelected(null);
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      toast.success('Inbox refreshed');
+    }, 800);
+  }
+
+  function handleSendReply() {
+    if (!replyText.trim()) { toast.error('Reply cannot be empty'); return; }
+    if (!selected) return;
+    const sent: Email = {
+      id: Date.now(), from: 'You', initials: 'N', email: 'nimsha@samsara.travel',
+      subject: `Re: ${selected.subject}`, preview: replyText.slice(0, 80),
+      time: 'Just now', unread: false,
+      body: `To: ${selected.email}\n\n${replyText}`,
+    };
+    setSentEmails(prev => [sent, ...prev]);
+    setReplyText('');
+    toast.success('Reply sent successfully');
+  }
+
+  function handleComposeSend() {
+    if (!compose.to.trim())      { toast.error('Recipient is required'); return; }
+    if (!compose.subject.trim()) { toast.error('Subject is required'); return; }
+    if (!compose.body.trim())    { toast.error('Message body is required'); return; }
+    const sent: Email = {
+      id: Date.now(), from: 'You', initials: 'N', email: 'nimsha@samsara.travel',
+      subject: compose.subject, preview: compose.body.slice(0, 80),
+      time: 'Just now', unread: false, body: `To: ${compose.to}\n\n${compose.body}`,
+    };
+    setSentEmails(prev => [sent, ...prev]);
+    setCompose({ to: '', subject: '', body: '' });
+    setShowCompose(false);
+    toast.success(`Email sent to ${compose.to}`);
+  }
+
+  const unreadCount = (rawEmails).filter(e => e.unread).length;
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 48px)', background: '#F7F7F7' }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {/* ── Col 1: Folder panel ── */}
       <div style={{
@@ -512,7 +573,7 @@ export default function InboxPage() {
 
         {/* Compose */}
         <div style={{ padding: '0 12px 12px' }}>
-          <button style={{
+          <button onClick={() => setShowCompose(true)} style={{
             width: '100%', padding: '7px 12px',
             background: '#111111', color: '#ffffff',
             border: 'none', borderRadius: 6,
@@ -605,17 +666,20 @@ export default function InboxPage() {
           {labelsOpen && LABELS.map(({ key, label, color }) => (
             <button
               key={key}
+              onClick={() => handleLabelClick(key)}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center',
                 gap: 9, padding: '6px 10px', borderRadius: 5,
-                border: 'none', background: 'none',
-                color: '#555555', fontSize: 12, fontWeight: 400,
+                border: 'none',
+                background: activeLabel === key ? `${color}18` : 'none',
+                color: activeLabel === key ? color : '#555555',
+                fontSize: 12, fontWeight: activeLabel === key ? 600 : 400,
                 cursor: 'pointer', fontFamily: 'inherit',
                 textAlign: 'left', transition: 'background 0.1s',
                 marginBottom: 1,
               }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = '#F7F7F7')}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'none')}
+              onMouseEnter={e => { if (activeLabel !== key) (e.currentTarget as HTMLElement).style.background = '#F7F7F7'; }}
+              onMouseLeave={e => { if (activeLabel !== key) (e.currentTarget as HTMLElement).style.background = 'none'; }}
             >
               <Tag size={12} strokeWidth={1.75} color={color} style={{ flexShrink: 0 }} />
               {label}
@@ -654,6 +718,7 @@ export default function InboxPage() {
           </div>
           <button
             title="Refresh"
+            onClick={handleRefresh}
             style={{
               background: 'none', border: 'none', padding: '4px 6px',
               borderRadius: 4, display: 'flex', cursor: 'pointer',
@@ -668,7 +733,7 @@ export default function InboxPage() {
               (e.currentTarget as HTMLElement).style.background = 'none';
             }}
           >
-            <RefreshCw size={13} strokeWidth={2} />
+            <RefreshCw size={13} strokeWidth={2} style={{ animation: refreshing ? 'spin 0.7s linear infinite' : 'none' }} />
           </button>
         </div>
 
@@ -746,6 +811,109 @@ export default function InboxPage() {
         </div>
       </div>
 
+      {/* ── Compose modal ── */}
+      {showCompose && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
+          padding: '0 24px 24px', zIndex: 1000,
+        }} onClick={e => { if (e.target === e.currentTarget) setShowCompose(false); }}>
+          <div style={{
+            background: '#ffffff', borderRadius: 10,
+            boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+            width: 480, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            {/* Modal header */}
+            <div style={{
+              padding: '12px 16px', background: '#111111',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>New Message</span>
+              <button
+                onClick={() => setShowCompose(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: '#aaaaaa' }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#ffffff')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#aaaaaa')}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* To */}
+              <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #F0F0F0', padding: '0 16px' }}>
+                <label style={{ fontSize: 12, color: '#AAAAAA', width: 52, flexShrink: 0 }}>To</label>
+                <input
+                  value={compose.to}
+                  onChange={e => setCompose(p => ({ ...p, to: e.target.value }))}
+                  placeholder="recipient@example.com"
+                  style={{
+                    flex: 1, padding: '10px 0', fontSize: 13, color: '#111111',
+                    border: 'none', outline: 'none', background: 'none', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+              {/* Subject */}
+              <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #F0F0F0', padding: '0 16px' }}>
+                <label style={{ fontSize: 12, color: '#AAAAAA', width: 52, flexShrink: 0 }}>Subject</label>
+                <input
+                  value={compose.subject}
+                  onChange={e => setCompose(p => ({ ...p, subject: e.target.value }))}
+                  placeholder="Email subject"
+                  style={{
+                    flex: 1, padding: '10px 0', fontSize: 13, color: '#111111',
+                    border: 'none', outline: 'none', background: 'none', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+              {/* Body */}
+              <textarea
+                value={compose.body}
+                onChange={e => setCompose(p => ({ ...p, body: e.target.value }))}
+                placeholder="Write your message…"
+                rows={8}
+                style={{
+                  padding: '14px 16px', fontSize: 13, color: '#111111',
+                  border: 'none', outline: 'none', resize: 'none',
+                  fontFamily: 'inherit', lineHeight: 1.7,
+                }}
+              />
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '10px 16px', borderTop: '1px solid #F0F0F0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <button
+                onClick={() => setShowCompose(false)}
+                style={{
+                  background: 'none', border: '1px solid #E5E5E5', borderRadius: 6,
+                  padding: '7px 14px', fontSize: 12, fontWeight: 500, color: '#555555',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleComposeSend}
+                style={{
+                  background: '#111111', color: '#ffffff', border: 'none',
+                  borderRadius: 6, padding: '7px 20px', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.12s',
+                }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Col 3: Email detail ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: 0 }}>
         {selected ? (
@@ -800,7 +968,10 @@ export default function InboxPage() {
             {folder !== 'sent' && folder !== 'trash' && folder !== 'spam' && (
               <div style={{ padding: '12px 28px', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8 }}>
                 <input
-                  placeholder="Reply..."
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                  placeholder="Reply… (Enter to send)"
                   style={{
                     flex: 1, padding: '8px 12px',
                     background: '#F7F7F7', border: '1px solid #E5E5E5',
@@ -808,7 +979,7 @@ export default function InboxPage() {
                     outline: 'none', fontFamily: 'inherit',
                   }}
                 />
-                <button style={{
+                <button onClick={handleSendReply} style={{
                   padding: '8px 18px',
                   background: '#111111', color: '#ffffff',
                   border: 'none', borderRadius: 6,

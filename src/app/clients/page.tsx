@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { mockClients } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, X,
 } from 'lucide-react';
 
 type TabKey    = 'all' | 'vip' | 'repeat' | 'corporate';
@@ -87,23 +87,34 @@ function Divider() {
 }
 
 export default function ClientsPage() {
-  const [tab,        setTab]        = useState<TabKey>('all');
-  const [filter,     setFilter]     = useState('');
-  const [sort,       setSort]       = useState<SortField>('name');
-  const [dir,        setDir]        = useState<SortDir>('asc');
-  const [refreshing, setRefreshing] = useState(false);
+  const [tab,           setTab]           = useState<TabKey>('all');
+  const [filter,        setFilter]        = useState('');
+  const [sort,          setSort]          = useState<SortField>('name');
+  const [dir,           setDir]           = useState<SortDir>('asc');
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [showAddModal,  setShowAddModal]  = useState(false);
+  const [addForm,       setAddForm]       = useState({ full_name: '', email: '', phone: '', nationality: '', company_name: '' });
+
+  function handleAddClient() {
+    if (!addForm.full_name.trim()) { toast.error('Full name is required'); return; }
+    if (!addForm.email.trim())     { toast.error('Email is required'); return; }
+    if (!addForm.nationality.trim()) { toast.error('Nationality is required'); return; }
+    setShowAddModal(false);
+    setAddForm({ full_name: '', email: '', phone: '', nationality: '', company_name: '' });
+    toast.success(`Client "${addForm.full_name}" added successfully`);
+  }
 
   function toggleSort(f: SortField) {
     if (sort === f) setDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSort(f); setDir('asc'); }
   }
 
-  function tabCount(key: TabKey) {
-    if (key === 'vip')       return mockClients.filter(c => c.is_vip).length;
-    if (key === 'repeat')    return mockClients.filter(c => c.is_repeat_client).length;
-    if (key === 'corporate') return mockClients.filter(c => !!c.company_name).length;
-    return mockClients.length;
-  }
+  const tabCounts = useMemo<Record<TabKey, number>>(() => ({
+    all:       mockClients.length,
+    vip:       mockClients.filter(c => c.is_vip).length,
+    repeat:    mockClients.filter(c => c.is_repeat_client).length,
+    corporate: mockClients.filter(c => !!c.company_name).length,
+  }), []);
 
   const rows = useMemo(() => {
     let list = [...mockClients];
@@ -172,14 +183,14 @@ export default function ClientsPage() {
           />
         </div>
 
-        <Link
-          href="/clients/new"
+        <button
+          onClick={() => setShowAddModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 12px', borderRadius: 3, height: 26,
             background: '#111111', color: '#ffffff',
-            fontSize: 12, fontWeight: 600,
-            textDecoration: 'none', flexShrink: 0,
+            fontSize: 12, fontWeight: 600, border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
             transition: 'opacity 0.12s',
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
@@ -187,7 +198,7 @@ export default function ClientsPage() {
         >
           <Plus size={12} strokeWidth={2.5} />
           Add Client
-        </Link>
+        </button>
       </div>
 
       {/* Tab bar */}
@@ -198,7 +209,7 @@ export default function ClientsPage() {
       }}>
         {TABS.map(({ key, label }) => {
           const active = tab === key;
-          const count  = tabCount(key);
+          const count  = tabCounts[key];
           return (
             <button
               key={key}
@@ -344,6 +355,54 @@ export default function ClientsPage() {
           </div>
         )}
       </div>
+
+      {/* Add Client Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
+          <div style={{ background: '#ffffff', borderRadius: 10, width: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#111111' }}>Add New Client</span>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#AAAAAA' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { label: 'Full Name *', key: 'full_name', placeholder: 'e.g. Amara Perera' },
+                { label: 'Email *',     key: 'email',     placeholder: 'email@example.com' },
+                { label: 'Phone',       key: 'phone',     placeholder: '+94 77 000 0000' },
+                { label: 'Nationality *', key: 'nationality', placeholder: 'e.g. Sri Lankan' },
+                { label: 'Company (optional)', key: 'company_name', placeholder: 'e.g. Acme Corp' },
+              ].map(({ label, key, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
+                  <input
+                    value={(addForm as any)[key]}
+                    onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 5,
+                      border: '1px solid #E0E0E0', fontSize: 13, color: '#111111',
+                      outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAddModal(false)} style={{ padding: '7px 16px', border: '1px solid #E0E0E0', borderRadius: 5, background: 'none', fontSize: 12, fontWeight: 500, color: '#555555', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleAddClient} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Add Client
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

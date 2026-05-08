@@ -126,9 +126,10 @@ export async function saveItineraryDays(days: {
   description: string;
   sort_order: number;
 }[]) {
+  if (days.length === 0) return [];
   const sb = createClient();
-  // Delete existing days and reinsert
-  await sb.from('itinerary_days').delete().eq('reservation_id', days[0].reservation_id);
+  const reservationId = days[0].reservation_id;
+  await sb.from('itinerary_days').delete().eq('reservation_id', reservationId);
   const { data, error } = await sb.from('itinerary_days').insert(days).select();
   if (error) throw error;
   return data;

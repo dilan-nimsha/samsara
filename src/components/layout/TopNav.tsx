@@ -9,6 +9,7 @@ import {
   ChevronDown, CalendarDays, UserPlus, Users, Handshake,
   UserCheck, Truck, Package, CreditCard, BarChart3,
   Plus, FileDown, FileUp,
+  Tag, CalendarRange, Building2, Percent, FileX, ListChecks, Calculator,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
@@ -66,13 +67,32 @@ const MENUS: MenuGroup[] = [
     ],
   },
   {
+    key: 'rates',
+    label: 'Rates & Policies',
+    matchPaths: ['/rates'],
+    items: [
+      { type: 'header', label: 'Pricing' },
+      { type: 'link', label: 'Contracted Rates',        href: '/rates?tab=contracted',   icon: <Tag          size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Seasonal Pricing',        href: '/rates?tab=seasonal',     icon: <CalendarRange size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Supplier Rates',          href: '/rates?tab=supplier',     icon: <Building2    size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Markups & Commissions',   href: '/rates?tab=markups',      icon: <Percent      size={13} strokeWidth={1.75} /> },
+      { type: 'divider' },
+      { type: 'header', label: 'Policies' },
+      { type: 'link', label: 'Cancellation Policies',   href: '/rates?tab=cancellation', icon: <FileX        size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Payment Terms',           href: '/rates?tab=payment',      icon: <CreditCard   size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Service Inclusions',      href: '/rates?tab=inclusions',   icon: <ListChecks   size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Tax Settings',            href: '/rates?tab=tax',          icon: <Calculator   size={13} strokeWidth={1.75} /> },
+    ],
+  },
+  {
     key: 'finance',
     label: 'Finance',
-    matchPaths: ['/finance', '/reports'],
+    matchPaths: ['/finance', '/reports', '/analytics'],
     items: [
-      { type: 'link', label: 'Finance Overview', href: '/finance',  icon: <CreditCard size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Finance Overview',    href: '/finance',    icon: <CreditCard size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Analytics & Insights', href: '/analytics', icon: <BarChart3  size={13} strokeWidth={1.75} /> },
       { type: 'divider' },
-      { type: 'link', label: 'Reports',           href: '/reports', icon: <BarChart3  size={13} strokeWidth={1.75} /> },
+      { type: 'link', label: 'Reports',              href: '/reports',   icon: <BarChart3  size={13} strokeWidth={1.75} /> },
     ],
   },
 ];
@@ -182,9 +202,9 @@ export default function TopNav() {
                   padding: '0 14px', height: '100%',
                   fontSize: 13, fontWeight: active || isOpen ? 600 : 400,
                   color: active || isOpen ? '#ffffff' : 'rgba(255,255,255,0.50)',
+                  borderTop: 'none', borderLeft: 'none', borderRight: 'none',
                   borderBottom: active ? '2px solid #ffffff' : isOpen ? '2px solid rgba(255,255,255,0.35)' : '2px solid transparent',
                   background: isOpen ? 'rgba(255,255,255,0.06)' : 'none',
-                  border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
                   whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit',
                   transition: 'color 0.12s, background 0.12s',
                 }}
@@ -225,7 +245,8 @@ export default function TopNav() {
                         </p>
                       );
                     }
-                    const isCurrent = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href) && item.href !== '/reservations');
+                    const hrefPath = item.href.split('?')[0];
+                    const isCurrent = pathname === hrefPath || (hrefPath !== '/dashboard' && hrefPath !== '/reservations' && pathname.startsWith(hrefPath));
                     return (
                       <Link
                         key={idx}

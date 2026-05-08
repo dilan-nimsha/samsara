@@ -3,10 +3,11 @@
 import { useState, useMemo } from 'react';
 import { mockVehicles, mockDrivers } from '@/lib/mock-data';
 import type { FleetVehicleType } from '@/types';
+import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
-  Car, Truck, Bus, Wind, Star, CheckCircle, XCircle, AlertCircle,
+  Car, Truck, Bus, Wind, Star, CheckCircle, XCircle, AlertCircle, X,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -125,6 +126,18 @@ export default function FleetPage() {
   const [vDir,         setVDir]         = useState<SortDir>('asc');
   const [dDir,         setDDir]         = useState<SortDir>('asc');
   const [refreshing,   setRefreshing]   = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ type: 'van', registration: '', make: '', model: '', year: '', capacity: '', driver_name: '', license: '', phone: '' });
+
+  function handleAddFleet(e: React.FormEvent) {
+    e.preventDefault();
+    const isVehicle = tab === 'vehicles';
+    const nameField = isVehicle ? addForm.registration : addForm.driver_name;
+    if (!nameField.trim()) { toast.error(isVehicle ? 'Registration is required' : 'Driver name is required'); return; }
+    setShowAddModal(false);
+    setAddForm({ type: 'van', registration: '', make: '', model: '', year: '', capacity: '', driver_name: '', license: '', phone: '' });
+    toast.success(isVehicle ? `Vehicle ${addForm.registration} added` : `Driver "${addForm.driver_name}" added`);
+  }
 
   function toggleVSort(f: VehicleSort) {
     if (vSort === f) setVDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -187,6 +200,7 @@ export default function FleetPage() {
   ];
 
   return (
+    <>
     <div style={{ height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', background: '#F0F0F0' }}>
 
       {/* Toolbar */}
@@ -222,6 +236,7 @@ export default function FleetPage() {
         </div>
 
         <button
+          onClick={() => setShowAddModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 12px', borderRadius: 3, height: 26,
@@ -545,5 +560,79 @@ export default function FleetPage() {
         </div>
       )}
     </div>
+
+    {/* ── Add Vehicle / Driver Modal ── */}
+    {showAddModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000,
+      }} onClick={() => setShowAddModal(false)}>
+        <div style={{
+          background: '#fff', borderRadius: 10, padding: '24px 28px',
+          width: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111' }}>
+              {tab === 'vehicles' ? 'Add New Vehicle' : 'Add New Driver'}
+            </h3>
+            <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex' }}>
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleAddFleet}>
+            {tab === 'vehicles' ? (
+              <>
+                {[
+                  { label: 'Registration *', key: 'registration', placeholder: 'e.g. WP-CAA-1234' },
+                  { label: 'Make', key: 'make', placeholder: 'e.g. Toyota' },
+                  { label: 'Model', key: 'model', placeholder: 'e.g. KDH Van' },
+                  { label: 'Year', key: 'year', placeholder: 'e.g. 2023' },
+                  { label: 'Capacity (pax)', key: 'capacity', placeholder: 'e.g. 8' },
+                ].map(({ label, key, placeholder }) => (
+                  <div key={key} style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                    <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                      style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')} onBlur={e => (e.currentTarget.style.borderColor = '#E0E0E0')} />
+                  </div>
+                ))}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehicle Type</label>
+                  <select value={addForm.type} onChange={e => setAddForm(p => ({ ...p, type: e.target.value }))}
+                    style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}>
+                    {['car','van','minibus','coach','tuk_tuk','boat'].map(t => <option key={t} value={t}>{t.replace('_',' ')}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                {[
+                  { label: 'Full Name *', key: 'driver_name', placeholder: 'e.g. Chamara Perera' },
+                  { label: 'License Number', key: 'license', placeholder: 'e.g. B1234567' },
+                  { label: 'Phone', key: 'phone', placeholder: 'e.g. +94 77 123 4567' },
+                ].map(({ label, key, placeholder }) => (
+                  <div key={key} style={{ marginBottom: 14 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                    <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                      style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')} onBlur={e => (e.currentTarget.style.borderColor = '#E0E0E0')} />
+                  </div>
+                ))}
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #E0E0E0', background: '#F5F5F5', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button type="submit" style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#111111', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {tab === 'vehicles' ? 'Add Vehicle' : 'Add Driver'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

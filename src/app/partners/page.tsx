@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { mockPartners } from '@/lib/mock-data';
 import { formatCurrency } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
-  CheckCircle, XCircle,
+  CheckCircle, XCircle, X,
 } from 'lucide-react';
 
 type TabKey    = 'all' | 'active' | 'inactive';
@@ -87,22 +87,34 @@ function Divider() {
 }
 
 export default function PartnersPage() {
-  const [tab,        setTab]        = useState<TabKey>('all');
-  const [filter,     setFilter]     = useState('');
-  const [sort,       setSort]       = useState<SortField>('company');
-  const [dir,        setDir]        = useState<SortDir>('asc');
-  const [refreshing, setRefreshing] = useState(false);
+  const [tab,          setTab]          = useState<TabKey>('all');
+  const [filter,       setFilter]       = useState('');
+  const [sort,         setSort]         = useState<SortField>('company');
+  const [dir,          setDir]          = useState<SortDir>('asc');
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm,      setAddForm]      = useState({ company_name: '', contact_person: '', email: '', phone: '', country: '', commission_rate: '' });
+
+  function handleAddPartner() {
+    if (!addForm.company_name.trim())    { toast.error('Company name is required'); return; }
+    if (!addForm.contact_person.trim())  { toast.error('Contact person is required'); return; }
+    if (!addForm.email.trim())           { toast.error('Email is required'); return; }
+    if (!addForm.country.trim())         { toast.error('Country is required'); return; }
+    setShowAddModal(false);
+    setAddForm({ company_name: '', contact_person: '', email: '', phone: '', country: '', commission_rate: '' });
+    toast.success(`Partner "${addForm.company_name}" added successfully`);
+  }
 
   function toggleSort(f: SortField) {
     if (sort === f) setDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSort(f); setDir('asc'); }
   }
 
-  function tabCount(key: TabKey) {
-    if (key === 'active')   return mockPartners.filter(p => p.is_active).length;
-    if (key === 'inactive') return mockPartners.filter(p => !p.is_active).length;
-    return mockPartners.length;
-  }
+  const tabCounts = useMemo<Record<TabKey, number>>(() => ({
+    all:      mockPartners.length,
+    active:   mockPartners.filter(p => p.is_active).length,
+    inactive: mockPartners.filter(p => !p.is_active).length,
+  }), []);
 
   const rows = useMemo(() => {
     let list = [...mockPartners];
@@ -176,14 +188,14 @@ export default function PartnersPage() {
           />
         </div>
 
-        <Link
-          href="/partners/new"
+        <button
+          onClick={() => setShowAddModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 12px', borderRadius: 3, height: 26,
             background: '#111111', color: '#ffffff',
-            fontSize: 12, fontWeight: 600,
-            textDecoration: 'none', flexShrink: 0,
+            fontSize: 12, fontWeight: 600, border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
             transition: 'opacity 0.12s',
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
@@ -191,7 +203,7 @@ export default function PartnersPage() {
         >
           <Plus size={12} strokeWidth={2.5} />
           Add Partner
-        </Link>
+        </button>
       </div>
 
       {/* Tab bar */}
@@ -202,7 +214,7 @@ export default function PartnersPage() {
       }}>
         {TABS.map(({ key, label }) => {
           const active = tab === key;
-          const count  = tabCount(key);
+          const count  = tabCounts[key];
           return (
             <button
               key={key}
@@ -362,6 +374,55 @@ export default function PartnersPage() {
           </div>
         )}
       </div>
+
+      {/* Add Partner Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
+          <div style={{ background: '#ffffff', borderRadius: 10, width: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#111111' }}>Add New Partner</span>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#AAAAAA' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { label: 'Company Name *',     key: 'company_name',    placeholder: 'e.g. Luxury Tours GmbH' },
+                { label: 'Contact Person *',   key: 'contact_person',  placeholder: 'e.g. Hans Müller' },
+                { label: 'Email *',            key: 'email',           placeholder: 'partner@company.com' },
+                { label: 'Phone',              key: 'phone',           placeholder: '+49 89 000 0000' },
+                { label: 'Country *',          key: 'country',         placeholder: 'e.g. Germany' },
+                { label: 'Commission Rate %',  key: 'commission_rate', placeholder: 'e.g. 10' },
+              ].map(({ label, key, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
+                  <input
+                    value={(addForm as any)[key]}
+                    onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 5,
+                      border: '1px solid #E0E0E0', fontSize: 13, color: '#111111',
+                      outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAddModal(false)} style={{ padding: '7px 16px', border: '1px solid #E0E0E0', borderRadius: 5, background: 'none', fontSize: 12, fontWeight: 500, color: '#555555', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleAddPartner} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Add Partner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { mockSuppliers } from '@/lib/mock-data';
 import type { SupplierType, SupplierStatus } from '@/types';
+import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
-  Hotel, Car, Compass, UtensilsCrossed, UserCheck, Star,
+  Hotel, Car, Compass, UtensilsCrossed, UserCheck, Star, X,
   CheckCircle, AlertCircle, Clock,
 } from 'lucide-react';
 
@@ -123,21 +123,34 @@ function Divider() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SuppliersPage() {
-  const [tab,      setTab]      = useState<TabKey>('all');
-  const [filter,   setFilter]   = useState('');
-  const [status,   setStatus]   = useState<SupplierStatus | 'all'>('all');
-  const [sort,     setSort]     = useState<SortField>('name');
-  const [dir,      setDir]      = useState<SortDir>('asc');
-  const [refreshing, setRefreshing] = useState(false);
+  const [tab,          setTab]          = useState<TabKey>('all');
+  const [filter,       setFilter]       = useState('');
+  const [status,       setStatus]       = useState<SupplierStatus | 'all'>('all');
+  const [sort,         setSort]         = useState<SortField>('name');
+  const [dir,          setDir]          = useState<SortDir>('asc');
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm,      setAddForm]      = useState({ name: '', type: 'hotel', contact_person: '', email: '', phone: '', country: '' });
+
+  function handleAddSupplier() {
+    if (!addForm.name.trim())           { toast.error('Supplier name is required'); return; }
+    if (!addForm.contact_person.trim()) { toast.error('Contact person is required'); return; }
+    if (!addForm.email.trim())          { toast.error('Email is required'); return; }
+    setShowAddModal(false);
+    setAddForm({ name: '', type: 'hotel', contact_person: '', email: '', phone: '', country: '' });
+    toast.success(`Supplier "${addForm.name}" added successfully`);
+  }
 
   function toggleSort(f: SortField) {
     if (sort === f) setDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSort(f); setDir('asc'); }
   }
 
-  function tabCount(key: TabKey) {
-    return key === 'all' ? mockSuppliers.length : mockSuppliers.filter(s => s.type === key).length;
-  }
+  const tabCounts = useMemo<Record<TabKey, number>>(() => {
+    const counts = { all: mockSuppliers.length } as Record<TabKey, number>;
+    for (const s of mockSuppliers) counts[s.type] = (counts[s.type] ?? 0) + 1;
+    return counts;
+  }, []);
 
   const rows = useMemo(() => {
     let list = [...mockSuppliers];
@@ -226,14 +239,14 @@ export default function SuppliersPage() {
           />
         </div>
 
-        <Link
-          href="/suppliers/new"
+        <button
+          onClick={() => setShowAddModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 12px', borderRadius: 3, height: 26,
             background: '#111111', color: '#ffffff',
-            fontSize: 12, fontWeight: 600,
-            textDecoration: 'none', flexShrink: 0,
+            fontSize: 12, fontWeight: 600, border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
             transition: 'opacity 0.12s',
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
@@ -241,7 +254,7 @@ export default function SuppliersPage() {
         >
           <Plus size={12} strokeWidth={2.5} />
           Add Supplier
-        </Link>
+        </button>
       </div>
 
       {/* ── Tab bar ── */}
@@ -252,7 +265,7 @@ export default function SuppliersPage() {
       }}>
         {TABS.map(({ key, label }) => {
           const active = tab === key;
-          const count  = tabCount(key);
+          const count  = tabCounts[key] ?? 0;
           return (
             <button
               key={key}
@@ -444,6 +457,50 @@ export default function SuppliersPage() {
           </div>
         )}
       </div>
+
+      {/* Add Supplier Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
+          <div style={{ background: '#ffffff', borderRadius: 10, width: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#111111' }}>Add New Supplier</span>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#AAAAAA' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>Supplier Name *</label>
+                <input value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Aman Resorts" style={{ width: '100%', padding: '8px 10px', borderRadius: 5, border: '1px solid #E0E0E0', fontSize: 13, color: '#111111', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>Type *</label>
+                <select value={addForm.type} onChange={e => setAddForm(p => ({ ...p, type: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: 5, border: '1px solid #E0E0E0', fontSize: 13, color: '#111111', outline: 'none', fontFamily: 'inherit', background: '#fff', cursor: 'pointer', boxSizing: 'border-box' }}>
+                  {['hotel', 'transport', 'activity', 'guide', 'restaurant'].map(t => <option key={t} value={t} style={{ textTransform: 'capitalize' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                </select>
+              </div>
+              {[
+                { label: 'Contact Person *', key: 'contact_person', placeholder: 'e.g. Dileepa Silva' },
+                { label: 'Email *',           key: 'email',          placeholder: 'contact@supplier.com' },
+                { label: 'Phone',             key: 'phone',          placeholder: '+94 11 000 0000' },
+                { label: 'Country',           key: 'country',        placeholder: 'e.g. Sri Lanka' },
+              ].map(({ label, key, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
+                  <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} style={{ width: '100%', padding: '8px 10px', borderRadius: 5, border: '1px solid #E0E0E0', fontSize: 13, color: '#111111', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAddModal(false)} style={{ padding: '7px 16px', border: '1px solid #E0E0E0', borderRadius: 5, background: 'none', fontSize: 12, fontWeight: 500, color: '#555555', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={handleAddSupplier} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: 'pointer', fontFamily: 'inherit' }}>Add Supplier</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

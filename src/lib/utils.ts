@@ -1,10 +1,11 @@
 import type { ReservationStatus, PaymentStatus, Currency } from '@/types';
 
+const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  GBP: '£', USD: '$', EUR: '€', LKR: 'Rs', CNY: '¥',
+};
+
 export function formatCurrency(amount: number, currency: Currency): string {
-  const symbols: Record<Currency, string> = {
-    GBP: '£', USD: '$', EUR: '€', LKR: 'Rs', CNY: '¥',
-  };
-  return `${symbols[currency]}${amount.toLocaleString()}`;
+  return `${CURRENCY_SYMBOLS[currency]}${amount.toLocaleString()}`;
 }
 
 export function formatDate(dateStr: string): string {
@@ -43,12 +44,12 @@ export const STATUS_CONFIG: Record<ReservationStatus, { label: string; color: st
   feedback_pending: { label: 'Feedback',       color: '#B45309', bg: '#FEF3C7' },
 };
 
-export const PAYMENT_CONFIG: Record<PaymentStatus, { label: string; color: string }> = {
-  pending:  { label: 'Pending',  color: '#6B7280' },
-  partial:  { label: 'Partial',  color: '#D97706' },
-  paid:     { label: 'Paid',     color: '#059669' },
-  overdue:  { label: 'Overdue',  color: '#DC2626' },
-  refunded: { label: 'Refunded', color: '#7C3AED' },
+export const PAYMENT_CONFIG: Record<PaymentStatus, { label: string; color: string; bg: string }> = {
+  pending:  { label: 'Pending',  color: '#6B7280', bg: '#F3F4F6' },
+  partial:  { label: 'Partial',  color: '#92400E', bg: '#FEF3C7' },
+  paid:     { label: 'Paid',     color: '#065F46', bg: '#D1FAE5' },
+  overdue:  { label: 'Overdue',  color: '#991B1B', bg: '#FEE2E2' },
+  refunded: { label: 'Refunded', color: '#5B21B6', bg: '#EDE9FE' },
 };
 
 export function cn(...classes: (string | undefined | false | null)[]): string {

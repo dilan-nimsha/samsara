@@ -2862,7 +2862,7 @@ export default function ReservationDetailPage() {
             borderRadius: 3,
             background: status.bg,
             color: status.color,
-            border: `1px solid ${status.border ?? status.color}`,
+            border: `1px solid ${status.color}`,
           }}>
             {status.label}
           </span>
@@ -2872,41 +2872,45 @@ export default function ReservationDetailPage() {
       {/* ── Status pipeline ── */}
       <div style={{
         background: '#ffffff',
-        borderBottom: '1px solid #DDDDDD',
-        padding: '5px 16px',
+        borderBottom: '1px solid #CCCCCC',
+        padding: '6px 16px',
         flexShrink: 0,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', maxWidth: 700 }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           {STAGES.map((stage, i) => {
             const done   = i < stageIdx;
             const active = i === stageIdx;
             return (
               <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: done ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (done) {
+                      // clicking a past stage — no-op for now
+                    }
+                  }}
+                >
                   <div style={{
-                    width: 17, height: 17, borderRadius: '50%', marginBottom: 3,
-                    background: active ? '#1A6FC4' : done ? '#1A6FC4' : '#DDDDDD',
+                    width: 20, height: 20, borderRadius: '50%', marginBottom: 4,
+                    background: active ? '#1A6FC4' : done ? '#1A6FC4' : '#ffffff',
                     border: `2px solid ${active ? '#1A6FC4' : done ? '#1A6FC4' : '#CCCCCC'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    opacity: done ? 0.5 : 1,
+                    transition: 'all 0.15s',
                   }}>
-                    {(done || active) && (
-                      <span style={{ color: '#ffffff', fontSize: 8, fontWeight: 700, lineHeight: 1 }}>
-                        {done ? '✓' : '●'}
-                      </span>
-                    )}
+                    {done && <span style={{ color: '#ffffff', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>✓</span>}
+                    {active && <span style={{ color: '#ffffff', fontSize: 10, lineHeight: 1 }}>●</span>}
                   </div>
                   <span style={{
                     fontSize: 10, whiteSpace: 'nowrap',
-                    color: active ? '#1A6FC4' : done ? '#888888' : '#BBBBBB',
+                    color: active ? '#1A6FC4' : done ? '#666666' : '#BBBBBB',
                     fontWeight: active ? 700 : 400,
                   }}>{stage.label}</span>
                 </div>
                 {i < STAGES.length - 1 && (
                   <div style={{
-                    flex: 1, height: 1, marginBottom: 15,
+                    flex: 1, height: 1, marginBottom: 18, transition: 'background 0.2s',
                     background: done ? '#1A6FC4' : '#DDDDDD',
-                    opacity: done ? 0.4 : 1,
                   }} />
                 )}
               </div>
@@ -3200,8 +3204,10 @@ export default function ReservationDetailPage() {
                 }}>
                   <span>Charges Summary</span>
                   <span style={{
-                    fontSize: 11, fontWeight: 700,
+                    fontSize: 10, fontWeight: 700, padding: '1px 7px',
+                    borderRadius: 3, background: payment.bg,
                     color: payment.color,
+                    border: `1px solid ${payment.color}`,
                   }}>
                     {payment.label}
                   </span>
@@ -3281,10 +3287,10 @@ export default function ReservationDetailPage() {
                 <div style={{ ...chargeRowStyle }}>
                   <span style={{ fontSize: 12, color: '#555555' }}>Paid / Balance</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1A6FC4', fontVariantNumeric: 'tabular-nums' }}>
                       {r.total_paid > 0 ? formatCurrency(r.total_paid, r.currency) : '0.00'}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: balance > 0 ? '#D97706' : '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1A6FC4', fontVariantNumeric: 'tabular-nums' }}>
                       {balance > 0 ? formatCurrency(balance, r.currency) : '0.00'}
                     </span>
                   </div>
@@ -3325,18 +3331,23 @@ export default function ReservationDetailPage() {
                       key={label}
                       onClick={() => href !== '#' && (window.location.href = href)}
                       style={{
-                        textAlign: 'left', padding: '4px 6px',
-                        background: 'none', border: '1px solid #D4D4D4',
-                        borderRadius: 3, fontSize: 11,
-                        color: href === '#' ? '#AAAAAA' : '#1A6FC4',
-                        cursor: href === '#' ? 'default' : 'pointer',
+                        textAlign: 'left', padding: '3px 4px',
+                        background: 'none', border: 'none',
+                        fontSize: 11,
+                        color: '#1A6FC4',
+                        cursor: 'pointer',
                         fontFamily: 'inherit',
-                        transition: 'background 0.1s',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: '2px',
+                        opacity: href === '#' ? 0.55 : 1,
+                        transition: 'opacity 0.1s',
                       }}
                       onMouseEnter={e => {
-                        if (href !== '#') (e.currentTarget as HTMLElement).style.background = '#EEF4FF';
+                        (e.currentTarget as HTMLElement).style.opacity = '0.8';
                       }}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLElement).style.opacity = href === '#' ? '0.55' : '1';
+                      }}
                     >
                       {label}
                     </button>

@@ -12,6 +12,7 @@ type NotifyPayload = {
 
 // ─── EMAIL via Resend ─────────────────────────────────────────────────────────
 async function sendEmail(payload: NotifyPayload) {
+  if (!process.env.RESEND_API_KEY) throw new Error('Resend API key not configured');
   const { Resend } = await import('resend');
   const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -50,8 +51,9 @@ async function sendEmail(payload: NotifyPayload) {
 
 // ─── WHATSAPP via Twilio ──────────────────────────────────────────────────────
 async function sendWhatsApp(payload: NotifyPayload) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID!;
-  const authToken = process.env.TWILIO_AUTH_TOKEN!;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) throw new Error('Twilio credentials not configured');
   const from = process.env.TWILIO_WHATSAPP_FROM ?? 'whatsapp:+14155238886';
 
   const body = `*SAMSARA TRAVEL*\n\nDear ${payload.client_name},\n\n${payload.message}${payload.reservation_reference ? `\n\n*Booking Reference:* ${payload.reservation_reference}` : ''}`;

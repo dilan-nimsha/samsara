@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { mockGuides, mockGuideAssignments } from '@/lib/mock-data';
+import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
-  ChevronLeft, LayoutList, CalendarDays, Star,
+  ChevronLeft, LayoutList, CalendarDays, Star, X,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -130,17 +131,28 @@ export default function GuidesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [calYear,    setCalYear]    = useState(2026);
   const [calMonth,   setCalMonth]   = useState(4);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '' });
+
+  function handleAddGuide(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addForm.full_name.trim()) { toast.error('Guide name is required'); return; }
+    if (!addForm.base_location.trim()) { toast.error('Base location is required'); return; }
+    setShowAddModal(false);
+    setAddForm({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '' });
+    toast.success(`Guide "${addForm.full_name}" added successfully`);
+  }
 
   function toggleSort(f: SortField) {
     if (sort === f) setDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSort(f); setDir('asc'); }
   }
 
-  function tabCount(key: TabKey) {
-    if (key === 'available') return mockGuides.filter(g => g.is_available).length;
-    if (key === 'on_leave')  return mockGuides.filter(g => !g.is_available).length;
-    return mockGuides.length;
-  }
+  const tabCounts = useMemo<Record<TabKey, number>>(() => ({
+    all:       mockGuides.length,
+    available: mockGuides.filter(g => g.is_available).length,
+    on_leave:  mockGuides.filter(g => !g.is_available).length,
+  }), []);
 
   const rows = useMemo(() => {
     let list = [...mockGuides];
@@ -201,6 +213,7 @@ export default function GuidesPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div style={{ height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', background: '#F0F0F0' }}>
 
       {/* Toolbar */}
@@ -254,6 +267,7 @@ export default function GuidesPage() {
         )}
 
         <button
+          onClick={() => setShowAddModal(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 12px', borderRadius: 3, height: 26,
@@ -280,7 +294,7 @@ export default function GuidesPage() {
           }}>
             {TABS.map(({ key, label }) => {
               const active = tab === key;
-              const count  = tabCount(key);
+              const count  = tabCounts[key];
               return (
                 <button
                   key={key}
@@ -620,5 +634,56 @@ export default function GuidesPage() {
         </div>
       )}
     </div>
+
+    {/* ── Add Guide Modal ── */}
+    {showAddModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000,
+      }} onClick={() => setShowAddModal(false)}>
+        <div style={{
+          background: '#fff', borderRadius: 10, padding: '24px 28px',
+          width: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111' }}>Add New Guide</h3>
+            <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex' }}>
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleAddGuide}>
+            {[
+              { label: 'Full Name *', key: 'full_name', placeholder: 'e.g. Pradeep Fernando' },
+              { label: 'Base Location *', key: 'base_location', placeholder: 'e.g. Kandy' },
+              { label: 'Languages (comma-separated)', key: 'languages', placeholder: 'e.g. English, German' },
+              { label: 'Specializations (comma-separated)', key: 'specializations', placeholder: 'e.g. Wildlife, Cultural' },
+              { label: 'Daily Rate (USD)', key: 'daily_rate', placeholder: 'e.g. 75' },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                <input
+                  value={(addForm as any)[key]}
+                  onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#E0E0E0')}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #E0E0E0', background: '#F5F5F5', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button type="submit" style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#111111', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Add Guide
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -95,10 +95,16 @@ export default function Sidebar() {
           </button>
         )}
         {collapsed && (
-          <button onClick={() => setCollapsed(false)} style={{
+          <button onClick={() => setCollapsed(false)} title="Expand sidebar" style={{
             background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)',
-            display: 'none', padding: 2,
-          }} />
+            display: 'flex', padding: 2, borderRadius: 4, cursor: 'pointer',
+            transition: 'color 0.12s',
+          }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.55)')}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.2)')}
+          >
+            <PanelLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+          </button>
         )}
       </div>
 
