@@ -4,8 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\" --names \"website,backend\"",
+    "dev:backend": "echo 'Backend system placeholder - configure as needed'",
     "build": "next build",
+    "build:all": "npm run build && npm run build:backend",
+    "build:backend": "echo 'Backend build placeholder'",
     "start": "next start",
+    "start:all": "concurrently \"npm start\" \"npm run start:backend\" --names \"website,backend\"",
+    "start:backend": "echo 'Backend start placeholder'",
     "lint": "eslint"
   },
   "dependencies": {
@@ -28,6 +34,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
