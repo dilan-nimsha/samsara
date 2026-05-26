@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Read(//c/Users/PROTECH/Documents/app/samsara-backend/**)",
+      "Bash(npx create-next-app@latest samsara-rms --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack)",
+      "Bash(npm install:*)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\PROTECH\\\\Documents\\\\app\\\\samsara-backend\\\\samsara-rms\\\\src\\\\types\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\PROTECH\\\\Documents\\\\app\\\\samsara-backend\\\\samsara-rms\\\\src\\\\lib\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\PROTECH\\\\Documents\\\\app\\\\samsara-backend\\\\samsara-rms\\\\src\\\\components\\\\ui\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\PROTECH\\\\Documents\\\\app\\\\samsara-backend\\\\samsara-rms\\\\src\\\\components\\\\layout\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\PROTECH\\\\Documents\\\\app\\\\samsara-backend\\\\samsara-rms\\\\src\\\\app\\\\dashboard\")"
+    ]
+  }
+}
