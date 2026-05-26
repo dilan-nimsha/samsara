@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockSuppliers } from '@/lib/mock-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Supplier } from '@/types';
 import type { SupplierType, SupplierStatus } from '@/types';
 import { toast } from '@/lib/toast';
 import {
@@ -130,15 +130,52 @@ export default function SuppliersPage() {
   const [dir,          setDir]          = useState<SortDir>('asc');
   const [refreshing,   setRefreshing]   = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [saving,       setSaving]       = useState(false);
   const [addForm,      setAddForm]      = useState({ name: '', type: 'hotel', contact_person: '', email: '', phone: '', country: '' });
 
-  function handleAddSupplier() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading,   setLoading]   = useState(true);
+
+  const fetchSuppliers = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/suppliers');
+      const data = await res.json() as { success: boolean; suppliers?: Supplier[]; error?: string };
+      if (data.success) setSuppliers(data.suppliers ?? []);
+      else toast.error(data.error ?? 'Failed to load suppliers');
+    } catch {
+      toast.error('Failed to load suppliers');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchSuppliers(); }, [fetchSuppliers]);
+
+  async function handleAddSupplier() {
     if (!addForm.name.trim())           { toast.error('Supplier name is required'); return; }
     if (!addForm.contact_person.trim()) { toast.error('Contact person is required'); return; }
     if (!addForm.email.trim())          { toast.error('Email is required'); return; }
-    setShowAddModal(false);
-    setAddForm({ name: '', type: 'hotel', contact_person: '', email: '', phone: '', country: '' });
-    toast.success(`Supplier "${addForm.name}" added successfully`);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to add supplier');
+      const name = addForm.name;
+      setShowAddModal(false);
+      setAddForm({ name: '', type: 'hotel', contact_person: '', email: '', phone: '', country: '' });
+      toast.success(`Supplier "${name}" added successfully`);
+      await fetchSuppliers();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add supplier');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleSort(f: SortField) {
@@ -147,22 +184,22 @@ export default function SuppliersPage() {
   }
 
   const tabCounts = useMemo<Record<TabKey, number>>(() => {
-    const counts = { all: mockSuppliers.length } as Record<TabKey, number>;
-    for (const s of mockSuppliers) counts[s.type] = (counts[s.type] ?? 0) + 1;
+    const counts = { all: suppliers.length } as Record<TabKey, number>;
+    for (const s of suppliers) counts[s.type] = (counts[s.type] ?? 0) + 1;
     return counts;
-  }, []);
+  }, [suppliers]);
 
   const rows = useMemo(() => {
-    let list = [...mockSuppliers];
+    let list = [...suppliers];
     if (tab !== 'all')      list = list.filter(s => s.type === tab);
     if (status !== 'all')   list = list.filter(s => s.status === status);
     if (filter.trim()) {
       const q = filter.toLowerCase();
       list = list.filter(s =>
-        s.name.toLowerCase().includes(q) ||
-        s.contact_person.toLowerCase().includes(q) ||
-        s.email.toLowerCase().includes(q) ||
-        s.destinations.some(d => d.toLowerCase().includes(q))
+        (s.name ?? '').toLowerCase().includes(q) ||
+        (s.contact_person ?? '').toLowerCase().includes(q) ||
+        (s.email ?? '').toLowerCase().includes(q) ||
+        (s.destinations ?? []).some(d => d.toLowerCase().includes(q))
       );
     }
     list.sort((a, b) => {
@@ -176,12 +213,12 @@ export default function SuppliersPage() {
       return 0;
     });
     return list;
-  }, [tab, status, filter, sort, dir]);
+  }, [suppliers, tab, status, filter, sort, dir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchSuppliers();
   }
 
   return (
@@ -335,7 +372,7 @@ export default function SuppliersPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={12} style={{ padding: '32px', textAlign: 'center', color: '#AAAAAA', fontSize: 13 }}>
-                  No suppliers match your filters.
+                  {loading ? 'Loading suppliers…' : suppliers.length === 0 ? 'No suppliers yet. Click "Add Supplier" to create one.' : 'No suppliers match your filters.'}
                 </td>
               </tr>
             )}
@@ -449,7 +486,7 @@ export default function SuppliersPage() {
             padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-              {rows.length} of {mockSuppliers.length} suppliers
+              {rows.length} of {suppliers.length} suppliers
             </span>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
               {rows.reduce((s, x) => s + x.total_bookings, 0)} total bookings in view
@@ -490,7 +527,7 @@ export default function SuppliersPage() {
               ].map(({ label, key, placeholder }) => (
                 <div key={key}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
-                  <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} style={{ width: '100%', padding: '8px 10px', borderRadius: 5, border: '1px solid #E0E0E0', fontSize: 13, color: '#111111', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  <input value={addForm[key as keyof typeof addForm]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} style={{ width: '100%', padding: '8px 10px', borderRadius: 5, border: '1px solid #E0E0E0', fontSize: 13, color: '#111111', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               ))}
             </div>

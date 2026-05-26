@@ -5,7 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { mockReservations, mockSupplierBookings, mockCostLines } from '@/lib/mock-data';
 import { formatCurrency, formatDate, STATUS_CONFIG, PAYMENT_CONFIG, tripDuration } from '@/lib/utils';
-import type { ReservationStatus, Currency, SupplierBookingConfStatus, SupplierBookingPayStatus, CostCategory } from '@/types';
+import type { ReservationStatus, Currency, SupplierBookingConfStatus, SupplierBookingPayStatus, CostCategory, Reservation } from '@/types';
+import { getBlockers, nextStage as getNextStage } from '@/lib/reservations/lifecycle';
+import AssignmentsSection from '@/components/reservation/AssignmentsSection';
 import {
   Save, Plus, Trash2, RefreshCw, Printer, History,
   Share2, ChevronDown, HelpCircle, Send, FileText, MessageCircle,
@@ -889,6 +891,81 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
   agent_settlement: 'Agent Settlement',
 };
 
+// Extra inputs shown for each payment method. Config-driven so the form renders
+// the right fields dynamically and new methods are a one-line change.
+//   sensitive: 'mask'  → only the last 4 chars are persisted (e.g. card number)
+//   sensitive: 'never' → captured for the operator but NEVER stored (e.g. CVV)
+interface MethodField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  type?: 'text' | 'date' | 'email';
+  required?: boolean;
+  maxLength?: number;
+  sensitive?: 'mask' | 'never';
+}
+
+const METHOD_FIELDS: Record<PaymentMethod, MethodField[]> = {
+  bank_transfer: [
+    { key: 'bank_name',      label: 'Bank Name',            placeholder: 'e.g. HSBC' },
+    { key: 'account_name',   label: 'Sender / Account Name', placeholder: 'Account holder' },
+    { key: 'account_number', label: 'Account No. / IBAN',    placeholder: 'Last digits are fine' },
+  ],
+  credit_card: [
+    { key: 'cardholder',  label: 'Cardholder Name', placeholder: 'Name on card', required: true },
+    { key: 'card_number', label: 'Card Number',     placeholder: '•••• •••• •••• ••••', required: true, maxLength: 19, sensitive: 'mask' },
+    { key: 'card_expiry', label: 'Expiry (MM/YY)',  placeholder: 'MM/YY', required: true, maxLength: 5 },
+    { key: 'card_cvv',    label: 'CVV',             placeholder: '•••', maxLength: 4, sensitive: 'never' },
+  ],
+  cash: [
+    { key: 'received_by', label: 'Received By', placeholder: 'Staff member' },
+  ],
+  cheque: [
+    { key: 'cheque_number', label: 'Cheque Number', placeholder: 'e.g. 100231', required: true },
+    { key: 'bank_name',     label: 'Bank Name',     placeholder: 'Issuing bank' },
+    { key: 'cheque_date',   label: 'Cheque Date',   type: 'date' },
+  ],
+  online: [
+    { key: 'gateway',     label: 'Gateway / Provider',     placeholder: 'Stripe / PayPal / PayHere' },
+    { key: 'txn_id',      label: 'Gateway Transaction ID', placeholder: 'e.g. ch_3Ofx…' },
+    { key: 'payer_email', label: 'Payer Email',            placeholder: 'name@example.com', type: 'email' },
+  ],
+  agent_settlement: [
+    { key: 'agent_name',     label: 'Agent / Partner', placeholder: 'Company name' },
+    { key: 'settlement_ref', label: 'Settlement Ref.', placeholder: 'Statement / invoice no.' },
+  ],
+};
+
+// Light input formatting for card fields.
+function formatMethodFieldValue(key: string, raw: string): string {
+  if (key === 'card_number') {
+    return raw.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
+  }
+  if (key === 'card_expiry') {
+    const d = raw.replace(/\D/g, '').slice(0, 4);
+    return d.length <= 2 ? d : `${d.slice(0, 2)}/${d.slice(2)}`;
+  }
+  if (key === 'card_cvv') return raw.replace(/\D/g, '').slice(0, 4);
+  return raw;
+}
+
+// Build the persistable detail set: drop 'never' fields, mask 'mask' fields.
+function sanitizeMethodDetails(method: PaymentMethod, values: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of METHOD_FIELDS[method]) {
+    const v = (values[f.key] ?? '').trim();
+    if (!v) continue;
+    if (f.sensitive === 'never') continue;                       // e.g. CVV — never leaves the form
+    if (f.sensitive === 'mask') {
+      const digits = v.replace(/\D/g, '');
+      out[f.label] = digits.length >= 4 ? `•••• ${digits.slice(-4)}` : '••••';
+    } else {
+      out[f.label] = v;
+    }
+  }
+  return out;
+}
+
 const TX_TYPE_CONFIG: Record<TxType, { label: string; color: string; bg: string }> = {
   payment:  { label: 'Payment',       color: '#059669', bg: '#ECFDF5' },
   refund:   { label: 'Refund',        color: '#DC2626', bg: '#FEF2F2' },
@@ -1419,7 +1496,7 @@ function CostingTab({ reservationId, totalCost, commission, currency }: {
   );
 }
 
-function PaymentsTab({ r }: { r: { reference: string; total_cost: number; total_paid: number; currency: string; commission_amount: number; payment_status: string; client?: { full_name?: string; email?: string } | null; partner?: { company_name: string; commission_rate: number } | null; payments?: Array<{ id: string; paid_at?: string; method: string; reference?: string; amount: number; currency: string; status: string; notes?: string }> | null } }) {
+function PaymentsTab({ r, reservationId, onPaid }: { r: { reference: string; total_cost: number; total_paid: number; currency: string; commission_amount: number; payment_status: string; client?: { full_name?: string; email?: string } | null; partner?: { company_name: string; commission_rate: number } | null; payments?: Array<{ id: string; paid_at?: string; method: string; reference?: string; amount: number; currency: string; status: string; notes?: string }> | null }; reservationId: string; onPaid?: (totalPaid: number, paymentStatus: string) => void }) {
   const total   = r.total_cost;
   const paid    = r.total_paid;
   const balance = total - paid;
@@ -1440,28 +1517,81 @@ function PaymentsTab({ r }: { r: { reference: string; total_cost: number; total_
   const [formMemo,   setFormMemo]   = useState('');
   const [formDate,   setFormDate]   = useState(new Date().toISOString().slice(0, 10));
   const [memo,       setMemo]       = useState('');
+  const [savingTx,   setSavingTx]   = useState(false);
+  // Method-specific field values, keyed by MethodField.key. Cleared when the
+  // method changes so fields from a previous method never carry over.
+  const [methodFields, setMethodFields] = useState<Record<string, string>>({});
+
+  function changeMethod(m: PaymentMethod) {
+    setFormMethod(m);
+    setMethodFields({});
+  }
+  function setMethodField(key: string, raw: string) {
+    setMethodFields(prev => ({ ...prev, [key]: formatMethodFieldValue(key, raw) }));
+  }
+  // Every required field for the selected method must be filled before saving.
+  const methodFieldsValid = METHOD_FIELDS[formMethod]
+    .filter(f => f.required)
+    .every(f => (methodFields[f.key] ?? '').trim().length > 0);
 
   const totalTxPaid = txns.filter(t => t.status === 'confirmed' && (t.type === 'payment' || t.type === 'deposit')).reduce((s, t) => s + t.amount, 0);
   const totalRefund = txns.filter(t => t.status === 'confirmed' && t.type === 'refund').reduce((s, t) => s + t.amount, 0);
 
-  function saveTransaction() {
+  async function saveTransaction() {
     const amt = parseFloat(formAmount);
-    if (!amt || isNaN(amt)) return;
+    if (!amt || isNaN(amt) || savingTx) return;
+    if (!methodFieldsValid) {
+      alert(`Please complete the required ${METHOD_LABELS[formMethod]} fields.`);
+      return;
+    }
+    const reference = formRef || `${r.reference}-TX-${String(txns.length + 1).padStart(3, '0')}`;
+    // CVV is dropped here; card numbers are reduced to the last 4 digits.
+    const methodDetails = sanitizeMethodDetails(formMethod, methodFields);
+
+    // Money-movement types persist to the DB and roll up onto the reservation;
+    // pre-authorisations are holds, so they stay client-side only.
+    const persists = formType === 'payment' || formType === 'deposit' || formType === 'refund';
+    if (persists) {
+      setSavingTx(true);
+      try {
+        const res = await fetch(`/api/reservations/${reservationId}/payments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amt, type: formType, method: formMethod,
+            reference, notes: formMemo, actor: CURRENT_STAFF.name,
+            method_details: methodDetails,
+          }),
+        });
+        const data = await res.json() as { success: boolean; total_paid?: number; payment_status?: string; error?: string };
+        if (!data.success) throw new Error(data.error ?? 'Failed to record payment');
+        if (typeof data.total_paid === 'number' && data.payment_status) {
+          onPaid?.(data.total_paid, data.payment_status);
+        }
+      } catch (err) {
+        alert(`Failed to record transaction: ${err instanceof Error ? err.message : String(err)}`);
+        setSavingTx(false);
+        return;
+      }
+      setSavingTx(false);
+    }
+
     const next: Transaction = {
       id:        Math.random().toString(36).slice(2),
       type:      formType,
       date:      formDate,
       method:    formMethod,
-      reference: formRef || `${r.reference}-TX-${String(txns.length + 1).padStart(3, '0')}`,
+      reference,
       amount:    amt,
       currency:  cur,
       status:    'confirmed',
-      user:      'Nimsha',
+      user:      CURRENT_STAFF.name,
       memo:      formMemo,
     };
     setTxns(prev => [...prev, next]);
     setShowForm(false);
     setFormAmount(''); setFormRef(''); setFormMemo('');
+    setMethodFields({});
     setFormDate(new Date().toISOString().slice(0, 10));
   }
 
@@ -1669,7 +1799,7 @@ function PaymentsTab({ r }: { r: { reference: string; total_cost: number; total_
                   </div>
                   <div>
                     <label style={formLbl}>Payment Method</label>
-                    <select value={formMethod} onChange={e => setFormMethod(e.target.value as PaymentMethod)} style={formInp}
+                    <select value={formMethod} onChange={e => changeMethod(e.target.value as PaymentMethod)} style={formInp}
                       onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')}
                       onBlur={e  => (e.currentTarget.style.borderColor = '#CCCCCC')}>
                       {(Object.keys(METHOD_LABELS) as PaymentMethod[]).map(m => (
@@ -1678,6 +1808,44 @@ function PaymentsTab({ r }: { r: { reference: string; total_cost: number; total_
                     </select>
                   </div>
                 </div>
+
+                {/* ── Method-specific fields (dynamic) ── */}
+                {METHOD_FIELDS[formMethod].length > 0 && (
+                  <div style={{
+                    border: '1px solid #DCE7F5', borderRadius: 4, background: '#F8FBFF',
+                    padding: '9px 10px', marginBottom: 8,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 7 }}>
+                      <CreditCard size={11} strokeWidth={2} color="#1A6FC4" />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#1A6FC4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {METHOD_LABELS[formMethod]} Details
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                      {METHOD_FIELDS[formMethod].map(f => (
+                        <div key={f.key}>
+                          <label style={formLbl}>
+                            {f.label}{f.required ? ' *' : ''}
+                            {f.sensitive === 'never' && <span style={{ color: '#999', fontWeight: 400 }}> · not stored</span>}
+                            {f.sensitive === 'mask'  && <span style={{ color: '#999', fontWeight: 400 }}> · last 4 stored</span>}
+                          </label>
+                          <input
+                            type={f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
+                            value={methodFields[f.key] ?? ''}
+                            maxLength={f.maxLength}
+                            onChange={e => setMethodField(f.key, e.target.value)}
+                            placeholder={f.placeholder}
+                            style={formInp}
+                            autoComplete="off"
+                            onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')}
+                            onBlur={e  => (e.currentTarget.style.borderColor = '#CCCCCC')}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 }}>
                   <div>
                     <label style={formLbl}>Reference No.</label>
@@ -1697,15 +1865,15 @@ function PaymentsTab({ r }: { r: { reference: string; total_cost: number; total_
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     onClick={saveTransaction}
-                    disabled={!formAmount}
+                    disabled={!formAmount || !methodFieldsValid || savingTx}
                     style={{
                       padding: '5px 14px', border: 'none', borderRadius: 3,
-                      background: formAmount ? '#1A6FC4' : '#C8D8E8',
+                      background: formAmount && methodFieldsValid && !savingTx ? '#1A6FC4' : '#C8D8E8',
                       color: '#ffffff', fontSize: 11, fontWeight: 600,
-                      cursor: formAmount ? 'pointer' : 'default', fontFamily: 'inherit',
+                      cursor: formAmount && methodFieldsValid && !savingTx ? 'pointer' : 'default', fontFamily: 'inherit',
                     }}
                   >
-                    Save {TX_TYPE_CONFIG[formType].label}
+                    {savingTx ? 'Saving…' : `Save ${TX_TYPE_CONFIG[formType].label}`}
                   </button>
                   <button
                     onClick={() => setShowForm(false)}
@@ -2288,39 +2456,33 @@ function ActionItem({
 }
 
 function TBtn({
-  icon, label, primary, danger, active, chevron,
+  icon, label, primary, danger, active, chevron, dark,
   onClick,
 }: {
-  icon?: React.ReactNode; label: string; primary?: boolean; danger?: boolean; active?: boolean; chevron?: boolean;
+  icon?: React.ReactNode; label: string; primary?: boolean; danger?: boolean; active?: boolean; chevron?: boolean; dark?: boolean;
   onClick?: () => void;
 }) {
+  const bg    = primary ? '#1A6FC4' : danger ? '#CC3333' : dark ? (active ? '#4A4A4A' : '#383838') : (active ? '#D8D8D8' : '#E8E8E8');
+  const bd    = primary ? '#1565B0' : danger ? '#AA2020' : dark ? '#555555' : '#C0C0C0';
+  const clr   = primary || danger ? '#ffffff' : dark ? '#EEEEEE' : '#222222';
+  const hoBg  = primary ? '#1460A8' : danger ? '#B82828' : dark ? '#505050' : '#DCDCDC';
   return (
     <button
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 4,
         padding: '3px 9px', borderRadius: 3,
-        border: primary ? '1px solid #1565B0' : danger ? '1px solid #AA2020' : '1px solid #C0C0C0',
-        background: primary ? '#1A6FC4' : danger ? '#CC3333' : active ? '#D8D8D8' : '#E8E8E8',
-        color: primary || danger ? '#ffffff' : '#222222',
+        border: `1px solid ${bd}`,
+        background: bg,
+        color: clr,
         fontSize: 12, fontWeight: primary || danger ? 600 : 500,
         cursor: 'pointer', fontFamily: 'inherit',
         height: 25,
         whiteSpace: 'nowrap',
-        boxShadow: primary || danger ? '0 1px 2px rgba(0,0,0,0.15)' : '0 1px 1px rgba(0,0,0,0.07)',
+        boxShadow: primary || danger ? '0 1px 2px rgba(0,0,0,0.25)' : dark ? 'none' : '0 1px 1px rgba(0,0,0,0.07)',
       }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement;
-        if (primary) el.style.background = '#1460A8';
-        else if (danger) el.style.background = '#B82828';
-        else el.style.background = '#DCDCDC';
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement;
-        if (primary) el.style.background = '#1A6FC4';
-        else if (danger) el.style.background = '#CC3333';
-        else el.style.background = active ? '#D8D8D8' : '#E8E8E8';
-      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = hoBg; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = bg; }}
     >
       {icon}
       {label}
@@ -2329,9 +2491,114 @@ function TBtn({
   );
 }
 
+// ── Timeline (Audit Trail) Tab ──────────────────────────────────────────────────
+
+interface ActivityEntry {
+  id: string;
+  actor: string;
+  action: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  summary: string;
+  created_at: string;
+}
+
+const ACTION_CFG: Record<string, { icon: React.ComponentType<{ size?: number; color?: string }>; color: string; bg: string }> = {
+  status_change: { icon: Flag,          color: '#1A6FC4', bg: '#EFF6FF' },
+  edit:          { icon: PenLine,       color: '#6B7280', bg: '#F3F4F6' },
+  payment:       { icon: CreditCard,    color: '#059669', bg: '#ECFDF5' },
+  document:      { icon: FileText,      color: '#7C3AED', bg: '#F5F3FF' },
+  note:          { icon: MessageCircle, color: '#0891B2', bg: '#F0FBFF' },
+  email:         { icon: Mail,          color: '#D97706', bg: '#FFFBEB' },
+};
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function TimelineTab({ reservationId }: { reservationId: string }) {
+  const [entries, setEntries] = useState<ActivityEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    // `loading` starts true; we only flip it false on completion to avoid a
+    // synchronous setState in the effect body (Next 16 lint rule).
+    let active = true;
+    fetch(`/api/reservations/${reservationId}/activity`)
+      .then(res => res.json())
+      .then((data: { success: boolean; entries?: ActivityEntry[]; error?: string }) => {
+        if (!active) return;
+        if (data.success) setEntries(data.entries ?? []);
+        else setError(data.error ?? 'Failed to load activity');
+      })
+      .catch(e => { if (active) setError(String(e)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reservationId]);
+
+  return (
+    <div style={sectionStyle}>
+      <div style={{ ...sectionHeadStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <History size={13} style={{ color: '#1A6FC4' }} />
+        Activity Timeline
+      </div>
+      <div style={{ padding: '12px 16px' }}>
+        {loading && (
+          <div style={{ fontSize: 12, color: '#999', padding: '12px 0' }}>Loading activity…</div>
+        )}
+        {!loading && error && (
+          <div style={{ fontSize: 12, color: '#DC2626', padding: '12px 0' }}>{error}</div>
+        )}
+        {!loading && !error && entries.length === 0 && (
+          <div style={{ fontSize: 12, color: '#999', padding: '12px 0' }}>
+            No activity recorded yet. Status changes and edits will appear here.
+          </div>
+        )}
+        {!loading && !error && entries.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            {/* vertical rail */}
+            <div style={{ position: 'absolute', left: 11, top: 4, bottom: 4, width: 2, background: '#EEEEEE' }} />
+            {entries.map(e => {
+              const cfg = ACTION_CFG[e.action] ?? { icon: Clock, color: '#6B7280', bg: '#F3F4F6' };
+              const Icon = cfg.icon;
+              return (
+                <div key={e.id} style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: 16 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%', background: cfg.bg,
+                    border: `1px solid ${cfg.color}33`, flexShrink: 0, zIndex: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon size={12} color={cfg.color} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+                    <div style={{ fontSize: 12.5, color: '#1A1A1A', fontWeight: 500 }}>{e.summary}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 1 }}>
+                      {e.actor} · <span title={new Date(e.created_at).toLocaleString('en-GB')}>{relativeTime(e.created_at)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-type TabKey = 'general' | 'payments' | 'supplier_bookings' | 'costing' | 'documents';
+type TabKey = 'general' | 'payments' | 'supplier_bookings' | 'costing' | 'documents' | 'timeline';
 
 function fmtTime(val: string): string {
   const d = val.replace(/\D/g, '').slice(0, 4);
@@ -2402,7 +2669,7 @@ export default function ReservationDetailPage() {
     return () => document.removeEventListener('mousedown', h);
   }, [messageOpen]);
 
-  const r = mockReservations.find(x => x.id === id);
+  const mockR = mockReservations.find(x => x.id === id);
 
   // ── Editable field state ───────────────────────────────────────────────────
   const [clientName,     setClientName]     = useState('');
@@ -2415,12 +2682,43 @@ export default function ReservationDetailPage() {
   const [infants,        setInfants]        = useState(0);
   const [nights,         setNights]         = useState(0);
   const [notes,          setNotes]          = useState('');
-  const [dirty,          setDirty]          = useState(false);
-  const [saved,          setSaved]          = useState(false);
-  const [initialized,    setInitialized]    = useState(false);
+  const [dirty,              setDirty]              = useState(false);
+  const [saved,              setSaved]              = useState(false);
+  const [saving,             setSaving]             = useState(false);
+  const [deleting,           setDeleting]           = useState(false);
+  const [initialized,        setInitialized]        = useState(false);
+  const [reservationStatus,  setReservationStatus]  = useState<ReservationStatus | null>(null);
+  const [statusChanging,        setStatusChanging]        = useState(false);
+  const [statusError,           setStatusError]           = useState<{ reason: string; blockers: string[] } | null>(null);
+  const [, setPayTick]                                    = useState(0); // forces re-render after a payment mutates `r`
+  const [sendingConfirmation,   setSendingConfirmation]   = useState(false);
+  const [confirmationSent,      setConfirmationSent]      = useState(false);
 
-  // Seed state once reservation loads
-  if (r && !initialized) {
+  // ── Live fetch for web bookings (not in mock data) ─────────────────────────
+  const [liveR,         setLiveR]         = useState<typeof mockR | null>(null);
+  const [fetchingLive,  setFetchingLive]  = useState(!mockR);
+
+  useEffect(() => {
+    if (mockR) return;
+    setFetchingLive(true);
+    fetch(`/api/bookings/${id}`)
+      .then(res => res.json())
+      .then((data: { success: boolean; reservation?: typeof mockR }) => {
+        if (data.success && data.reservation) setLiveR(data.reservation);
+      })
+      .catch(() => {})
+      .finally(() => setFetchingLive(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const r = mockR ?? liveR;
+  // Typed view for the structured booking columns (present on live DB rows,
+  // absent on mock objects) so the new fields are accessible + type-safe.
+  const booking = (r ?? {}) as Partial<Reservation>;
+
+  // Seed editable state once reservation loads (useEffect avoids setState-during-render)
+  useEffect(() => {
+    if (!r || initialized) return;
     setClientName(r.client?.full_name ?? '');
     setArrivalDate(r.arrival_date);
     setArrivalTime('');
@@ -2431,34 +2729,135 @@ export default function ReservationDetailPage() {
     setChildren(r.num_children);
     setInfants(r.num_infants);
     setNotes(r.internal_notes ?? '');
+    setReservationStatus(r.status);
     setInitialized(true);
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r]);
 
   function markDirty() { setDirty(true); }
 
-  function handleSave() {
-    if (!r) return;
-    if (r.client) r.client.full_name = clientName;
-    r.arrival_date   = arrivalDate;
-    r.departure_date = departureDate;
-    r.num_adults     = adults;
-    r.num_children   = children;
-    r.num_infants    = infants;
-    r.internal_notes = notes;
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  async function handleSave() {
+    if (!r || saving) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        arrival_date:   arrivalDate,
+        departure_date: departureDate,
+        num_adults:     adults,
+        num_children:   children,
+        num_infants:    infants,
+        internal_notes: notes,
+      };
+      if (r.client) {
+        body.client_name = clientName;
+        body.client_id   = r.client_id;
+      }
+      const res = await fetch(`/api/reservations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Save failed');
+      if (r.client) r.client.full_name = clientName;
+      r.arrival_date   = arrivalDate;
+      r.departure_date = departureDate;
+      r.num_adults     = adults;
+      r.num_children   = children;
+      r.num_infants    = infants;
+      r.internal_notes = notes;
+      setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      alert(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleDelete() {
-    if (!r) return;
+  async function handleDelete() {
+    if (!r || deleting) return;
     const ok = window.confirm(
-      `Delete reservation ${r.reference} for ${r.client?.full_name ?? 'this client'}?\n\nThis cannot be undone.`
+      `Cancel reservation ${r.reference} for ${r.client?.full_name ?? 'this client'}?\n\nThis will mark the reservation as cancelled.`
     );
     if (!ok) return;
-    const idx = mockReservations.findIndex(x => x.id === id);
-    if (idx !== -1) mockReservations.splice(idx, 1);
-    router.push('/reservations');
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/reservations/${id}`, { method: 'DELETE' });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Delete failed');
+      const idx = mockReservations.findIndex(x => x.id === id);
+      if (idx !== -1) mockReservations.splice(idx, 1);
+      router.push('/reservations');
+    } catch (err) {
+      alert(`Failed to cancel: ${err instanceof Error ? err.message : String(err)}`);
+      setDeleting(false);
+    }
+  }
+
+  async function handleStatusChange(newStatus: ReservationStatus) {
+    if (!r || statusChanging) return;
+    setStatusChanging(true);
+    setStatusError(null);
+    try {
+      const res = await fetch(`/api/reservations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, actor: CURRENT_STAFF.name }),
+      });
+      const data = await res.json() as { success: boolean; error?: string; blockers?: string[] };
+      if (!data.success) {
+        // 422 = lifecycle gate not met; show the specific blockers inline.
+        if (data.blockers && data.blockers.length > 0) {
+          setStatusError({ reason: data.error ?? 'Requirements not met', blockers: data.blockers });
+          return;
+        }
+        throw new Error(data.error ?? 'Status update failed');
+      }
+      r.status = newStatus;
+      setReservationStatus(newStatus);
+    } catch (err) {
+      setStatusError({ reason: err instanceof Error ? err.message : String(err), blockers: [] });
+    } finally {
+      setStatusChanging(false);
+    }
+  }
+
+  // Called by the Payments tab once a transaction is persisted server-side.
+  // Mutating `r` keeps every summary in sync; the tick forces the lifecycle
+  // gate banner to re-evaluate (e.g. a settled balance unblocks "Paid").
+  function handlePaymentRecorded(totalPaid: number, paymentStatus: string) {
+    if (!r) return;
+    r.total_paid     = totalPaid;
+    r.payment_status = paymentStatus as typeof r.payment_status;
+    setStatusError(null);
+    setPayTick(t => t + 1);
+  }
+
+  async function handleSendConfirmation() {
+    if (!r || sendingConfirmation) return;
+    const clientEmail = r.client?.email;
+    const to = clientEmail
+      ? window.prompt('Send confirmation to:', clientEmail)
+      : window.prompt('Enter client email address:');
+    if (!to) return;
+    setSendingConfirmation(true);
+    try {
+      const res = await fetch(`/api/reservations/${id}/send-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to }),
+      });
+      const data = await res.json() as { success: boolean; sentTo?: string; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Send failed');
+      setConfirmationSent(true);
+      setTimeout(() => setConfirmationSent(false), 3000);
+    } catch (err) {
+      alert(`Failed to send confirmation: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSendingConfirmation(false);
+    }
   }
 
   function handleRefresh() {
@@ -2557,15 +2956,21 @@ export default function ReservationDetailPage() {
 
   if (!r) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#AAAAAA', fontSize: 13 }}>
-      Reservation not found.
+      {fetchingLive ? 'Loading reservation…' : 'Reservation not found.'}
     </div>
   );
 
-  const status   = STATUS_CONFIG[r.status];
+  const currentStatus = reservationStatus ?? r.status;
+  const status   = STATUS_CONFIG[currentStatus];
   const payment  = PAYMENT_CONFIG[r.payment_status];
   const balance  = r.total_cost - r.total_paid;
   const pct      = r.total_cost > 0 ? Math.round((r.total_paid / r.total_cost) * 100) : 0;
-  const stageIdx = STAGE_ORDER.indexOf(r.status);
+  const stageIdx = STAGE_ORDER.indexOf(currentStatus);
+
+  // Lifecycle gate check: what (if anything) blocks advancing to the next stage.
+  const nextStg       = getNextStage(currentStatus);
+  const nextStgLabel  = nextStg ? STAGES.find(s => s.key === nextStg)?.label ?? nextStg : null;
+  const stageBlockers = nextStg ? getBlockers(r, nextStg) : [];
 
   const totalPax = adults + children + infants;
 
@@ -2580,32 +2985,32 @@ export default function ReservationDetailPage() {
 
       {/* ── Toolbar ── */}
       <div style={{
-        background: '#F2F2F2',
-        borderBottom: '1px solid #BBBBBB',
+        background: '#1A1A1A',
+        borderBottom: '1px solid #000000',
         padding: '4px 10px',
         display: 'flex', alignItems: 'center', gap: 3,
         flexShrink: 0, flexWrap: 'wrap',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
       }}>
         <TBtn
           icon={<Save size={12} strokeWidth={2} />}
-          label={saved ? 'Saved!' : 'Save'}
-          primary
+          label={saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
+          primary dark
           onClick={handleSave}
         />
-        {dirty && !saved && (
-          <span style={{ fontSize: 11, color: '#D97706', fontWeight: 500, marginLeft: 4 }}>
+        {dirty && !saved && !saving && (
+          <span style={{ fontSize: 11, color: '#FCD34D', fontWeight: 500, marginLeft: 4 }}>
             ● Unsaved changes
           </span>
         )}
-        <TBtn icon={<Plus size={12} strokeWidth={2.5} />} label="New" />
-        <TBtn icon={<Trash2 size={12} strokeWidth={2} />} label="Delete" danger onClick={handleDelete} />
+        <TBtn icon={<Plus size={12} strokeWidth={2.5} />} label="New" dark />
+        <TBtn icon={<Trash2 size={12} strokeWidth={2} />} label={deleting ? 'Cancelling…' : 'Delete'} danger dark onClick={handleDelete} />
 
         {/* Refresh */}
         <TBtn
           icon={<RefreshCw size={12} strokeWidth={2} style={{ animation: refreshing ? 'spin 0.7s linear infinite' : 'none' }} />}
           label={refreshing ? 'Refreshing…' : 'Refresh'}
-          onClick={handleRefresh}
+          dark onClick={handleRefresh}
         />
 
         {/* Print dropdown */}
@@ -2613,7 +3018,7 @@ export default function ReservationDetailPage() {
           <TBtn
             icon={<Printer size={12} strokeWidth={2} />}
             label="Print"
-            chevron
+            chevron dark
             onClick={() => setPrintOpen(o => !o)}
           />
           {printOpen && (
@@ -2657,36 +3062,36 @@ export default function ReservationDetailPage() {
         </div>
 
         {/* Export CSV */}
-        <TBtn icon={<Download size={12} strokeWidth={2} />} label="Export" onClick={exportCSV} />
-        <TBtn icon={<History size={12} strokeWidth={2} />} label="Change Log" />
-        <TBtn icon={<Share2 size={12} strokeWidth={2} />} label="Share" />
+        <TBtn icon={<Download size={12} strokeWidth={2} />} label="Export" dark onClick={exportCSV} />
+        <TBtn icon={<History size={12} strokeWidth={2} />} label="Change Log" dark />
+        <TBtn icon={<Share2 size={12} strokeWidth={2} />} label="Share" dark />
 
-        <div style={{ width: 1, height: 20, background: '#C0C0C0', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: '#444444', margin: '0 4px' }} />
 
         <Link
           href={`/reservations/${id}/itinerary`}
           style={{
             display: 'flex', alignItems: 'center', gap: 4,
-            padding: '3px 9px', borderRadius: 3, height: 26,
-            border: '1px solid #BBBBBB', background: '#EBEBEB',
-            color: '#333333', fontSize: 12, fontWeight: 500,
+            padding: '3px 9px', borderRadius: 3, height: 25,
+            border: '1px solid #555555', background: '#383838',
+            color: '#EEEEEE', fontSize: 12, fontWeight: 500,
             textDecoration: 'none', whiteSpace: 'nowrap',
           }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = '#DEDEDE')}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = '#EBEBEB')}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = '#505050')}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = '#383838')}
         >
           <BookOpen size={12} strokeWidth={2} />
           Itinerary
         </Link>
 
-        <div style={{ width: 1, height: 20, background: '#C0C0C0', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: '#444444', margin: '0 4px' }} />
 
         {/* Actions dropdown */}
         <div ref={actionsRef} style={{ position: 'relative' }}>
           <TBtn
             icon={<ChevronDown size={11} strokeWidth={2} />}
             label="Actions"
-            chevron={false}
+            chevron={false} dark
             onClick={() => setActionsOpen(o => !o)}
             active={actionsOpen}
           />
@@ -2725,10 +3130,15 @@ export default function ReservationDetailPage() {
 
               {/* Communications */}
               <p style={{ padding: '5px 12px 3px', fontSize: 10, fontWeight: 700, color: '#AAAAAA', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Communications</p>
+              <ActionItem
+                label={sendingConfirmation ? 'Sending…' : confirmationSent ? 'Confirmation Sent!' : 'Send Booking Confirmation'}
+                icon={<Mail size={13} strokeWidth={1.8} />}
+                danger={false}
+                onClick={() => { setActionsOpen(false); handleSendConfirmation(); }}
+              />
               {[
-                { label: 'Send Booking Confirmation', icon: <Mail     size={13} strokeWidth={1.8} />, danger: false },
-                { label: 'Send Itinerary to Client',  icon: <Send     size={13} strokeWidth={1.8} />, danger: false },
-                { label: 'Send Voucher to Supplier',  icon: <Ticket   size={13} strokeWidth={1.8} />, danger: false },
+                { label: 'Send Itinerary to Client',  icon: <Send   size={13} strokeWidth={1.8} />, danger: false },
+                { label: 'Send Voucher to Supplier',  icon: <Ticket size={13} strokeWidth={1.8} />, danger: false },
               ].map(({ label, icon, danger }) => (
                 <ActionItem key={label} label={label} icon={icon} danger={danger} onClick={() => setActionsOpen(false)} />
               ))}
@@ -2754,23 +3164,28 @@ export default function ReservationDetailPage() {
           )}
         </div>
 
-        <TBtn icon={<HelpCircle size={12} strokeWidth={2} />} label="Help" />
+        <TBtn icon={<HelpCircle size={12} strokeWidth={2} />} label="Help" dark />
 
-        <div style={{ width: 1, height: 20, background: '#C0C0C0', margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: '#444444', margin: '0 4px' }} />
 
-        <TBtn icon={<Send size={12} strokeWidth={2} />} label="Send Invoice" active />
+        <TBtn
+          icon={<Mail size={12} strokeWidth={2} />}
+          label={sendingConfirmation ? 'Sending…' : confirmationSent ? '✓ Sent!' : 'Send Confirmation'}
+          primary={confirmationSent} dark={!confirmationSent}
+          onClick={handleSendConfirmation}
+        />
         <Link
           href={`/reservations/${id}/itinerary`}
           style={{
             display: 'flex', alignItems: 'center', gap: 4,
             padding: '3px 9px', borderRadius: 3,
-            border: '1px solid #BBBBBB', background: '#EBEBEB',
-            color: '#333333', fontSize: 12, fontWeight: 500,
-            cursor: 'pointer', fontFamily: 'inherit', height: 26,
+            border: '1px solid #555555', background: '#383838',
+            color: '#EEEEEE', fontSize: 12, fontWeight: 500,
+            cursor: 'pointer', fontFamily: 'inherit', height: 25,
             textDecoration: 'none', whiteSpace: 'nowrap',
           }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = '#DEDEDE')}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = '#EBEBEB')}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = '#505050')}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = '#383838')}
         >
           <FileText size={12} strokeWidth={2} />
           Itinerary
@@ -2780,7 +3195,7 @@ export default function ReservationDetailPage() {
           <TBtn
             icon={<MessageCircle size={12} strokeWidth={2} />}
             label="Message"
-            chevron
+            chevron dark
             active={messageOpen}
             onClick={() => setMessageOpen(o => !o)}
           />
@@ -2792,16 +3207,6 @@ export default function ReservationDetailPage() {
           )}
         </div>
         <TBtn icon={<PenLine size={12} strokeWidth={2} />} label="Remote Sign" primary onClick={() => setSignOpen(true)} />
-
-        <div style={{ flex: 1 }} />
-
-        <Link href="/reservations" style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          fontSize: 12, color: '#555555', textDecoration: 'none',
-        }}>
-          <ChevronLeft size={13} strokeWidth={2} />
-          Back to Reservations
-        </Link>
       </div>
 
       {/* ── Tab bar + Reference ── */}
@@ -2814,8 +3219,8 @@ export default function ReservationDetailPage() {
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          {(['general', 'payments', 'supplier_bookings', 'costing', 'documents'] as TabKey[]).map(t => {
-            const labels: Record<TabKey, string> = { general: 'General', payments: 'Payments', supplier_bookings: 'Supplier Bookings', costing: 'Cost & Margin', documents: 'Documents' };
+          {(['general', 'payments', 'supplier_bookings', 'costing', 'documents', 'timeline'] as TabKey[]).map(t => {
+            const labels: Record<TabKey, string> = { general: 'General', payments: 'Payments', supplier_bookings: 'Supplier Bookings', costing: 'Cost & Margin', documents: 'Documents', timeline: 'Timeline' };
             const active = tab === t;
             return (
               <button
@@ -2842,8 +3247,19 @@ export default function ReservationDetailPage() {
           })}
         </div>
 
-        {/* Reference + Status */}
+        {/* Reference + Status + Back link */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px' }}>
+          <Link href="/reservations" style={{
+            display: 'flex', alignItems: 'center', gap: 3,
+            fontSize: 12, color: '#555555', textDecoration: 'none',
+            paddingRight: 10, borderRight: '1px solid #DDDDDD',
+          }}
+            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = '#1A6FC4')}
+            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#555555')}
+          >
+            <ChevronLeft size={13} strokeWidth={2} />
+            Back to Reservations
+          </Link>
           {r.is_vip && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#B8860B', fontWeight: 700 }}>
               <Star size={11} fill="#B8860B" strokeWidth={0} /> VIP
@@ -2879,32 +3295,36 @@ export default function ReservationDetailPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {STAGES.map((stage, i) => {
-            const done   = i < stageIdx;
-            const active = i === stageIdx;
+            const done     = i < stageIdx;
+            const active   = i === stageIdx;
+            const isNext   = i === stageIdx + 1;
+            const clickable = isNext && !statusChanging;
             return (
               <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                 <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: done ? 'pointer' : 'default' }}
-                  onClick={() => {
-                    if (done) {
-                      // clicking a past stage — no-op for now
-                    }
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1,
+                    cursor: clickable ? 'pointer' : 'default',
+                    opacity: statusChanging ? 0.6 : 1,
                   }}
+                  title={clickable ? `Advance to ${stage.label}` : undefined}
+                  onClick={() => { if (clickable) handleStatusChange(stage.key); }}
                 >
                   <div style={{
                     width: 20, height: 20, borderRadius: '50%', marginBottom: 4,
-                    background: active ? '#1A6FC4' : done ? '#1A6FC4' : '#ffffff',
-                    border: `2px solid ${active ? '#1A6FC4' : done ? '#1A6FC4' : '#CCCCCC'}`,
+                    background: active ? '#1A6FC4' : done ? '#1A6FC4' : isNext ? '#E8F0FB' : '#ffffff',
+                    border: `2px solid ${active ? '#1A6FC4' : done ? '#1A6FC4' : isNext ? '#1A6FC4' : '#CCCCCC'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.15s',
                   }}>
                     {done && <span style={{ color: '#ffffff', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>✓</span>}
                     {active && <span style={{ color: '#ffffff', fontSize: 10, lineHeight: 1 }}>●</span>}
+                    {isNext && <span style={{ color: '#1A6FC4', fontSize: 9, lineHeight: 1 }}>›</span>}
                   </div>
                   <span style={{
                     fontSize: 10, whiteSpace: 'nowrap',
-                    color: active ? '#1A6FC4' : done ? '#666666' : '#BBBBBB',
-                    fontWeight: active ? 700 : 400,
+                    color: active ? '#1A6FC4' : done ? '#666666' : isNext ? '#1A6FC4' : '#BBBBBB',
+                    fontWeight: active ? 700 : isNext ? 600 : 400,
                   }}>{stage.label}</span>
                 </div>
                 {i < STAGES.length - 1 && (
@@ -2918,6 +3338,42 @@ export default function ReservationDetailPage() {
           })}
         </div>
       </div>
+
+      {/* ── Lifecycle gate / next-step banner ── */}
+      {(statusError || (stageBlockers.length > 0 && nextStgLabel)) && (
+        <div style={{
+          flexShrink: 0,
+          padding: '7px 16px',
+          background: statusError ? '#FEF2F2' : '#FFFBEB',
+          borderBottom: `1px solid ${statusError ? '#FECACA' : '#FDE68A'}`,
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <AlertCircle size={14} style={{ color: statusError ? '#DC2626' : '#D97706', marginTop: 1, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: statusError ? '#991B1B' : '#92400E' }}>
+              {statusError
+                ? statusError.reason
+                : `To advance to ${nextStgLabel}, complete the following:`}
+            </div>
+            {(statusError ? statusError.blockers : stageBlockers).length > 0 && (
+              <ul style={{ margin: '3px 0 0', padding: '0 0 0 16px', fontSize: 11, color: statusError ? '#B91C1C' : '#A16207', lineHeight: 1.5 }}>
+                {(statusError ? statusError.blockers : stageBlockers).map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {statusError && (
+            <button
+              onClick={() => setStatusError(null)}
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#991B1B', padding: 2, lineHeight: 0 }}
+              title="Dismiss"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Content ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px' }}>
@@ -3154,6 +3610,44 @@ export default function ReservationDetailPage() {
                 </div>
               </FormSection>
 
+              {/* Booking Details — structured fields synced from the web booking */}
+              <FormSection title="Booking Details">
+                {booking.experience_title && (
+                  <FR label="Experience" value={booking.experience_title} highlight />
+                )}
+                <FRSplit
+                  left={<FR  label="Pickup"    value={booking.pickup_location ?? '—'}  />}
+                  right={<FR label="Drop-off"  value={booking.dropoff_location ?? '—'} />}
+                />
+                {booking.special_requests && (
+                  <div style={rowStyle}>
+                    <div style={labelStyle}>Special Requests</div>
+                    <div style={{ flex: 1, padding: '4px 8px', fontSize: 12, color: '#333', lineHeight: 1.5 }}>
+                      {booking.special_requests}
+                    </div>
+                  </div>
+                )}
+                {booking.booking_notes && (
+                  <div style={rowStyle}>
+                    <div style={labelStyle}>Booking Notes</div>
+                    <div style={{ flex: 1, padding: '4px 8px', fontSize: 12, color: '#333', lineHeight: 1.5 }}>
+                      {booking.booking_notes}
+                    </div>
+                  </div>
+                )}
+                <FRSplit
+                  left={<FR  label="Emergency Contact" value={booking.emergency_contact_name ?? '—'}  />}
+                  right={<FR label="Emergency Phone"   value={booking.emergency_contact_phone ?? '—'} />}
+                />
+              </FormSection>
+
+              {/* Resource assignments — vehicle / driver / guide with inline conflict detection */}
+              <AssignmentsSection
+                reservationId={id}
+                arrivalDate={arrivalDate || r.arrival_date}
+                departureDate={departureDate || r.departure_date}
+              />
+
               {/* Internal Notes */}
               <FormSection title="Internal Notes / Memo">
                 <div style={{ padding: '5px 10px' }}>
@@ -3359,7 +3853,7 @@ export default function ReservationDetailPage() {
         )}
 
         {/* ── Payments tab ── */}
-        {tab === 'payments' && <PaymentsTab r={r} />}
+        {tab === 'payments' && <PaymentsTab r={r} reservationId={id} onPaid={handlePaymentRecorded} />}
 
         {/* ── Supplier Bookings tab ── */}
         {tab === 'supplier_bookings' && <SupplierBookingsTab reservationId={id} currency={r.currency} />}
@@ -3371,6 +3865,13 @@ export default function ReservationDetailPage() {
         {tab === 'documents' && (
           <div style={{ maxWidth: 760 }}>
             <DocumentsSection />
+          </div>
+        )}
+
+        {/* ── Timeline tab ── */}
+        {tab === 'timeline' && (
+          <div style={{ maxWidth: 760, margin: '0 auto' }}>
+            <TimelineTab reservationId={id} />
           </div>
         )}
       </div>

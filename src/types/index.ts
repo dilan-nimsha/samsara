@@ -204,6 +204,13 @@ export interface Reservation {
   flight_departure?: string;
   airport_arrival?: string;
   airport_departure?: string;
+  pickup_location?: string;
+  dropoff_location?: string;
+  special_requests?: string;
+  booking_notes?: string;
+  experience_title?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   budget_range?: string;
   currency: Currency;
   total_cost: number;

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { mockReservations } from '@/lib/mock-data';
+import type { Reservation } from '@/types';
 import { formatCurrency, PAYMENT_CONFIG } from '@/lib/utils';
 import {
   RefreshCw, Download, SlidersHorizontal,
@@ -20,11 +20,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'commissions',  label: 'Commissions' },
   { key: 'overdue',      label: 'Overdue' },
 ];
-
-const totalRevenue     = mockReservations.reduce((s, r) => s + r.total_paid, 0);
-const totalOutstanding = mockReservations.reduce((s, r) => s + Math.max(0, r.total_cost - r.total_paid), 0);
-const totalCommission  = mockReservations.reduce((s, r) => s + r.commission_amount, 0);
-const overdueCount     = mockReservations.filter(r => r.payment_status === 'overdue').length;
 
 function Th({
   children, sort, current, dir, onSort, center, width,
@@ -99,20 +94,40 @@ export default function FinancePage() {
   const [dir,        setDir]        = useState<SortDir>('asc');
   const [refreshing, setRefreshing] = useState(false);
 
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading,      setLoading]      = useState(true);
+
+  const fetchReservations = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/reservations');
+      const data = await res.json() as { success: boolean; reservations?: Reservation[] };
+      if (data.success) setReservations(data.reservations ?? []);
+    } catch { /* surfaced as empty state */ }
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  useEffect(() => { void fetchReservations(); }, [fetchReservations]);
+
+  // Portfolio-wide financial aggregates, derived from live reservations.
+  const totalRevenue     = useMemo(() => reservations.reduce((s, r) => s + (r.total_paid ?? 0), 0), [reservations]);
+  const totalOutstanding = useMemo(() => reservations.reduce((s, r) => s + Math.max(0, (r.total_cost ?? 0) - (r.total_paid ?? 0)), 0), [reservations]);
+  const totalCommission  = useMemo(() => reservations.reduce((s, r) => s + (r.commission_amount ?? 0), 0), [reservations]);
+  const overdueCount     = useMemo(() => reservations.filter(r => r.payment_status === 'overdue').length, [reservations]);
+
   function toggleSort(f: SortField) {
     if (sort === f) setDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSort(f); setDir('asc'); }
   }
 
   function tabCount(key: TabKey) {
-    if (key === 'outstanding')  return mockReservations.filter(r => r.total_cost > r.total_paid).length;
-    if (key === 'commissions')  return mockReservations.filter(r => r.commission_amount > 0).length;
+    if (key === 'outstanding')  return reservations.filter(r => r.total_cost > r.total_paid).length;
+    if (key === 'commissions')  return reservations.filter(r => r.commission_amount > 0).length;
     if (key === 'overdue')      return overdueCount;
-    return mockReservations.length;
+    return reservations.length;
   }
 
   const rows = useMemo(() => {
-    let list = [...mockReservations];
+    let list = [...reservations];
     if (tab === 'outstanding') list = list.filter(r => r.total_cost > r.total_paid);
     if (tab === 'commissions') list = list.filter(r => r.commission_amount > 0);
     if (tab === 'overdue')     list = list.filter(r => r.payment_status === 'overdue');
@@ -136,12 +151,12 @@ export default function FinancePage() {
       return 0;
     });
     return list;
-  }, [tab, filter, sort, dir]);
+  }, [reservations, tab, filter, sort, dir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchReservations();
   }
 
   function exportCSV() {
@@ -315,7 +330,7 @@ export default function FinancePage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: '#AAAAAA', fontSize: 13 }}>
-                  No records match your filters.
+                  {loading ? 'Loading financials…' : reservations.length === 0 ? 'No reservations yet.' : 'No records match your filters.'}
                 </td>
               </tr>
             )}
@@ -405,7 +420,7 @@ export default function FinancePage() {
             justifyContent: 'space-between',
           }}>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-              {rows.length} of {mockReservations.length} reservations
+              {rows.length} of {reservations.length} reservations
             </span>
             <div style={{ display: 'flex', gap: 28 }}>
               <div style={{ textAlign: 'right' }}>

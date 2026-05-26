@@ -8,12 +8,13 @@ import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard, CalendarDays, Users, Handshake,
   CreditCard, BarChart3, Settings, PanelLeft, LogOut,
-  UserCheck, Truck,
+  UserCheck, Truck, Mail,
 } from 'lucide-react';
 
 const NAV = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/reservations', icon: CalendarDays,    label: 'Reservations' },
+  { href: '/email',        icon: Mail,            label: 'Email' },
   { href: '/clients',      icon: Users,           label: 'Clients' },
   { href: '/partners',     icon: Handshake,       label: 'Partners' },
   { href: '/guides',       icon: UserCheck,       label: 'Guides' },

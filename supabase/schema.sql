@@ -195,13 +195,13 @@ alter table activities enable row level security;
 alter table itinerary_days enable row level security;
 alter table payments enable row level security;
 
--- Allow all for authenticated users (staff)
-create policy "staff_all" on clients for all to authenticated using (true) with check (true);
-create policy "staff_all" on partners for all to authenticated using (true) with check (true);
-create policy "staff_all" on reservations for all to authenticated using (true) with check (true);
-create policy "staff_all" on travellers for all to authenticated using (true) with check (true);
-create policy "staff_all" on accommodations for all to authenticated using (true) with check (true);
-create policy "staff_all" on transfers for all to authenticated using (true) with check (true);
-create policy "staff_all" on activities for all to authenticated using (true) with check (true);
-create policy "staff_all" on itinerary_days for all to authenticated using (true) with check (true);
-create policy "staff_all" on payments for all to authenticated using (true) with check (true);
+-- Allow all users
+create policy "allow_all" on clients for all to public using (true) with check (true);
+create policy "allow_all" on partners for all to public using (true) with check (true);
+create policy "allow_all" on reservations for all to public using (true) with check (true);
+create policy "allow_all" on travellers for all to public using (true) with check (true);
+create policy "allow_all" on accommodations for all to public using (true) with check (true);
+create policy "allow_all" on transfers for all to public using (true) with check (true);
+create policy "allow_all" on activities for all to public using (true) with check (true);
+create policy "allow_all" on itinerary_days for all to public using (true) with check (true);
+create policy "allow_all" on payments for all to public using (true) with check (true);

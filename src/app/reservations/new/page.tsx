@@ -1,983 +1,735 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import TopBar from '@/components/layout/TopBar';
-import { generateReference } from '@/lib/utils';
-import { mockClients, mockPartners } from '@/lib/mock-data';
-import type { Currency, TravelPurpose } from '@/types';
-import { Check, Plus, Trash2, Upload, FileText, X, Star, Heart, Cake, Briefcase } from 'lucide-react';
+import Link from 'next/link';
+import type { Currency, TravelPurpose, Client, Partner } from '@/types';
+import { X, Paperclip, ChevronLeft, Save, MapPin } from 'lucide-react';
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────────────────────
 
-const INPUT: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.11)',
-  borderRadius: 7,
-  color: '#fff',
-  padding: '0 0.9rem',
-  fontSize: '0.84rem',
-  width: '100%',
-  height: 40,
+const C = {
+  pageBg:     '#F1F5F9',
+  cardBg:     '#FFFFFF',
+  cardBorder: '#E2E8F0',
+  sectionBg:  '#F8FAFC',
+  inputBg:    '#FEFCE8',
+  labelText:  '#64748B',
+  bodyText:   '#1E293B',
+  mutedText:  '#94A3B8',
+  primary:    '#1E40AF',
+  primaryBg:  '#EFF6FF',
+  divider:    '#F1F5F9',
+  required:   '#DC2626',
+  shadow:     '0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)',
+};
+
+// ── Shared cell styles for the form table ─────────────────────────────────────
+
+const labelCell: React.CSSProperties = {
+  padding: '9px 14px',
+  fontSize: 13,
+  color: C.labelText,
+  fontWeight: 500,
+  background: C.cardBg,
+  borderBottom: `1px solid ${C.divider}`,
+  borderRight: `1px solid ${C.divider}`,
+  whiteSpace: 'nowrap',
+  verticalAlign: 'middle',
+  width: '22%',
+};
+
+const inputCell: React.CSSProperties = {
+  padding: '7px 10px',
+  background: C.inputBg,
+  borderBottom: `1px solid ${C.divider}`,
+  borderRight: `1px solid ${C.divider}`,
+  verticalAlign: 'middle',
+  width: '28%',
+};
+
+const fieldInput: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
   outline: 'none',
-  boxSizing: 'border-box',
+  fontSize: 13,
+  color: C.bodyText,
+  width: '100%',
   fontFamily: 'inherit',
 };
 
-const TEXTAREA: React.CSSProperties = {
-  ...INPUT,
-  height: 'auto',
-  padding: '0.65rem 0.9rem',
-  resize: 'vertical' as const,
-  lineHeight: 1.5,
+const secHeader: React.CSSProperties = {
+  background: C.sectionBg,
+  borderBottom: `1px solid ${C.cardBorder}`,
+  padding: '8px 16px',
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#475569',
+  letterSpacing: '0.07em',
+  textTransform: 'uppercase' as const,
 };
 
-const LABEL: React.CSSProperties = {
-  color: 'rgba(255,255,255,0.38)',
-  fontSize: '0.63rem',
-  letterSpacing: '0.09em',
-  textTransform: 'uppercase',
-  marginBottom: '0.3rem',
-  display: 'block',
-};
+// ── Pipeline stages ───────────────────────────────────────────────────────────
 
-const CARD: React.CSSProperties = {
-  background: '#161616',
-  border: '1px solid rgba(255,255,255,0.07)',
-  borderRadius: 12,
-  padding: '1.5rem',
-  marginBottom: '0.875rem',
-};
+const STAGES = ['Enquiry','Under Review','Confirmed','Invoiced','Paid','Active','Completed'];
 
-const CARD_TITLE: React.CSSProperties = {
-  color: '#fff',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  margin: '0 0 0.9rem 0',
-  paddingBottom: '0.9rem',
-  borderBottom: '1px solid rgba(255,255,255,0.07)',
-  letterSpacing: '-0.01em',
-};
+// ── Document types ────────────────────────────────────────────────────────────
 
-const STEPS = [
-  { id: 1, label: 'Client' },
-  { id: 2, label: 'Travel' },
-  { id: 3, label: 'Accommodation' },
-  { id: 4, label: 'Transfers' },
-  { id: 5, label: 'Finance' },
-  { id: 6, label: 'Review' },
-];
+const DOC_TYPES = ['Passport','Visa','Flight Ticket','Hotel Voucher','Travel Insurance','Booking Confirmation','Other'];
 
-// ─── Reusable sub-components ──────────────────────────────────────────────────
-
-function Field({ label, children, span }: { label: string; children: React.ReactNode; span?: boolean }) {
-  return (
-    <div style={{ marginBottom: '0.9rem', ...(span ? { gridColumn: '1 / -1' } : {}) }}>
-      <label style={LABEL}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Grid({ cols = 2, children }: { cols?: number; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '0.75rem' }}>
-      {children}
-    </div>
-  );
-}
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '1.4rem 0 1rem' }}>
-      <span style={{
-        color: '#C9A84C', fontSize: '0.62rem', fontWeight: 700,
-        letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-      }}>{label}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(201,168,76,0.12)' }} />
-    </div>
-  );
-}
-
-function ToggleCard({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: '0.6rem',
-        background: checked ? 'rgba(201,168,76,0.08)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${checked ? 'rgba(201,168,76,0.35)' : 'rgba(255,255,255,0.08)'}`,
-        borderRadius: 8, padding: '0.7rem 1rem', cursor: 'pointer', textAlign: 'left', width: '100%',
-      }}
-    >
-      <div style={{
-        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-        background: checked ? '#C9A84C' : 'rgba(255,255,255,0.06)',
-        border: `2px solid ${checked ? '#C9A84C' : 'rgba(255,255,255,0.15)'}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {checked && <Check size={10} color="#080808" strokeWidth={3} />}
-      </div>
-      <span style={{ color: checked ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.5)', fontSize: '0.83rem', fontWeight: checked ? 500 : 400 }}>{label}</span>
-    </button>
-  );
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface TravellerEntry {
-  id: string;
-  full_name: string;
-  type: 'adult' | 'child' | 'infant';
-  nationality: string;
-  passport_number: string;
-  passport_expiry: string;
-  date_of_birth: string;
-}
-
-interface DocEntry {
-  id: string;
-  doc_type: 'passport' | 'visa' | 'insurance' | 'flight_ticket' | 'other';
-  file_name: string;
-  assigned_to: string;
-  uploaded_at: string;
-}
-
-const DOC_TYPE_LABELS: Record<DocEntry['doc_type'], string> = {
-  passport: 'Passport', visa: 'Visa', insurance: 'Insurance',
-  flight_ticket: 'Flight Ticket', other: 'Other',
-};
-
-const DOC_TYPE_COLORS: Record<DocEntry['doc_type'], string> = {
-  passport: '#3B82F6', visa: '#8B5CF6', insurance: '#10B981',
-  flight_ticket: '#F59E0B', other: '#6B7280',
-};
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NewReservationPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [activeTab, setActiveTab]   = useState('General');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    client_id: '',
-    full_name: '', company_name: '', email: '', phone: '', whatsapp: '',
-    nationality: '', passport_number: '', passport_expiry: '', date_of_birth: '',
-    dietary_restrictions: '', medical_notes: '',
-    is_vip: false, special_occasions: [] as string[],
-    arrival_date: '', departure_date: '',
-    num_adults: 1, num_children: 0, num_infants: 0,
-    destinations: '', travel_purpose: 'leisure' as TravelPurpose,
-    flight_arrival: '', airport_arrival: '', flight_departure: '', airport_departure: '',
-    partner_id: '', partner_reference: '', internal_notes: '',
-    hotel_name: '', hotel_category: '5_star', check_in: '', check_out: '',
-    room_type: 'double', num_rooms: 1, meal_plan: 'BB', special_requests: '',
-    has_second_property: false,
-    hotel2_name: '', hotel2_category: '5_star', hotel2_check_in: '', hotel2_check_out: '',
-    hotel2_room_type: 'double', hotel2_num_rooms: 1, hotel2_meal_plan: 'BB',
-    transfer_pickup: '', transfer_dropoff: '', transfer_date: '',
-    transfer_flight_number: '', vehicle_type: 'van', num_vehicles: 1, is_chauffeur: true,
-    has_departure_transfer: false,
-    dep_transfer_pickup: '', dep_transfer_dropoff: '', dep_transfer_date: '',
-    dep_transfer_flight_number: '', dep_vehicle_type: 'van', dep_num_vehicles: 1,
-    currency: 'GBP' as Currency, total_cost: '', budget_range: '',
-    deposit_amount: '', deposit_due_date: '', balance_due_date: '',
-    payment_method: 'bank_transfer', assigned_staff: 'Nimsha',
+    client_id:        '',
+    full_name:        '', nationality: '', passport_number: '', email: '', phone: '',
+    arrival_date:     '', arrival_time: '', airport_arrival: '', flight_arrival: '', arrival_memo: '',
+    departure_date:   '', departure_time: '', airport_departure: '', flight_departure: '', departure_memo: '',
+    num_adults:       1, num_children: 0, num_infants: 0,
+    destinations:     [] as string[],
+    destInput:        '',
+    travel_purpose:   'leisure' as TravelPurpose,
+    source:           'Direct',
+    budget_range:     '',
+    assigned_staff:   'Unassigned',
+    internal_notes:   '',
+    currency:         'USD' as Currency,
+    rate_code:        'leisure',
+    discount_pct:     0,
+    vat_pct:          0,
+    commission:       0,
+    partner_id:       '',
+    partner_reference:'',
   });
 
-  const [travellers, setTravellers] = useState<TravellerEntry[]>([]);
-  const [docs, setDocs] = useState<DocEntry[]>([]);
-  const [newDoc, setNewDoc] = useState<{ doc_type: DocEntry['doc_type']; file_name: string; assigned_to: string }>({
-    doc_type: 'passport', file_name: '', assigned_to: '',
-  });
+  const [attachedDocs, setAttachedDocs] = useState<{ name: string; type: string }[]>([]);
 
-  const set = (field: string, value: unknown) => setForm(prev => ({ ...prev, [field]: value }));
+  // Real clients + partners for the selectors.
+  const [clients,  setClients]  = useState<Client[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
 
-  const addTraveller = () => setTravellers(prev => [...prev, {
-    id: `t_${Date.now()}`, full_name: '', type: 'adult', nationality: '',
-    passport_number: '', passport_expiry: '', date_of_birth: '',
-  }]);
+  useEffect(() => {
+    fetch('/api/clients').then(r => r.json())
+      .then((d: { success: boolean; clients?: Client[] }) => { if (d.success) setClients(d.clients ?? []); })
+      .catch(() => {});
+    fetch('/api/partners').then(r => r.json())
+      .then((d: { success: boolean; partners?: Partner[] }) => { if (d.success) setPartners(d.partners ?? []); })
+      .catch(() => {});
+  }, []);
 
-  const updateTraveller = (id: string, field: keyof TravellerEntry, value: string) =>
-    setTravellers(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
+  const set = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
-  const removeTraveller = (id: string) => setTravellers(prev => prev.filter(t => t.id !== id));
+  const nights = (() => {
+    if (!form.arrival_date || !form.departure_date) return null;
+    const diff = (new Date(form.departure_date).getTime() - new Date(form.arrival_date).getTime()) / 86400000;
+    return diff > 0 ? diff : null;
+  })();
 
-  const addDoc = () => {
-    if (!newDoc.file_name.trim()) return;
-    setDocs(prev => [...prev, { id: `d_${Date.now()}`, ...newDoc, uploaded_at: new Date().toISOString() }]);
-    setNewDoc({ doc_type: 'passport', file_name: '', assigned_to: '' });
-  };
+  const totalPax = form.num_adults + form.num_children + form.num_infants;
 
-  const removeDoc = (id: string) => setDocs(prev => prev.filter(d => d.id !== id));
-  const selectedClient = mockClients.find(c => c.id === form.client_id);
+  function addDest(e: React.KeyboardEvent) {
+    if ((e.key === 'Enter' || e.key === ',') && form.destInput.trim()) {
+      e.preventDefault();
+      set('destinations', [...form.destinations, form.destInput.trim()]);
+      set('destInput', '');
+    }
+  }
+  function removeDest(d: string) { set('destinations', form.destinations.filter(x => x !== d)); }
 
-  const handleSubmit = async () => {
+  function handleFileChange(type: string) {
+    const name = `${type.toLowerCase().replace(/ /g, '_')}_${Date.now()}.pdf`;
+    setAttachedDocs(p => [...p, { name, type }]);
+  }
+
+  async function handleSubmit() {
+    if (saving) return;
+    if (!form.arrival_date || !form.departure_date) { alert('Arrival and departure dates are required.'); return; }
+    if (!form.client_id && (!form.full_name.trim() || !form.email.trim())) {
+      alert('Select a client, or enter the client name and email.'); return;
+    }
     setSaving(true);
     try {
-      generateReference();
-      await new Promise(r => setTimeout(r, 800));
-      router.push('/reservations');
-    } finally { setSaving(false); }
-  };
+      const res = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json() as { success: boolean; reservation?: { id: string }; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to create reservation');
+      router.push(data.reservation ? `/reservations/${data.reservation.id}` : '/reservations');
+    } catch (err) {
+      alert(`Failed to create reservation: ${err instanceof Error ? err.message : String(err)}`);
+      setSaving(false);
+    }
+  }
 
-  const OCCASION_CHIPS = [
-    { key: 'honeymoon', label: 'Honeymoon', icon: <Heart size={12} strokeWidth={2} /> },
-    { key: 'anniversary', label: 'Anniversary', icon: <Heart size={12} strokeWidth={2} /> },
-    { key: 'birthday', label: 'Birthday', icon: <Cake size={12} strokeWidth={2} /> },
-    { key: 'corporate', label: 'Corporate', icon: <Briefcase size={12} strokeWidth={2} /> },
-  ];
+  const TABS = ['General','Payments','Supplier Bookings','Cost & Margin','Documents'];
 
   return (
-    <div style={{ background: '#0F0F0F', minHeight: '100vh' }}>
-      <TopBar title="New Reservation" subtitle="Complete all steps to create a reservation" />
+    <div style={{ background: C.pageBg, minHeight: '100vh', paddingTop: 48 }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .field-input:focus { box-shadow: 0 0 0 2px ${C.primary}22; }
+        .tab-btn:hover:not(.active) { color: ${C.bodyText} !important; background: ${C.sectionBg} !important; }
+        .chip-dest { display: inline-flex; align-items: center; gap: 4px; background: ${C.primaryBg}; color: ${C.primary}; border: 1px solid #BFDBFE; border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 500; }
+        .action-link { background: none; border: none; padding: 0; color: ${C.primary}; font-size: 12px; cursor: pointer; font-family: inherit; text-align: left; text-decoration: none; opacity: 0.85; }
+        .action-link:hover { opacity: 1; text-decoration: underline; }
+        .doc-btn { padding: 5px 12px; border: 1px solid ${C.cardBorder}; border-radius: 6px; background: ${C.cardBg}; cursor: pointer; font-size: 12px; color: #475569; font-family: inherit; transition: all 0.1s; }
+        .doc-btn:hover { background: ${C.primaryBg}; border-color: #BFDBFE; color: ${C.primary}; }
+      `}</style>
 
-      <div style={{ padding: '1.5rem 2rem 3rem' }}>
+      {/* ── Sticky top block (tab bar + pipeline) ── */}
+      <div style={{ position: 'sticky', top: 48, zIndex: 40, background: C.cardBg, borderBottom: `1px solid ${C.cardBorder}` }}>
 
-        {/* ── Step Indicator ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          background: '#161616', border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 12, padding: '1.1rem 2rem', marginBottom: '1.25rem',
-        }}>
-          {STEPS.map((s, idx) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-              <div
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: step > s.id ? 'pointer' : 'default' }}
-                onClick={() => step > s.id && setStep(s.id)}
-              >
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', marginBottom: 5,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  background: step > s.id ? 'rgba(201,168,76,0.15)' : step === s.id ? '#C9A84C' : 'rgba(255,255,255,0.05)',
-                  border: `2px solid ${step === s.id ? '#C9A84C' : step > s.id ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                }}>
-                  {step > s.id
-                    ? <Check size={12} color="#C9A84C" strokeWidth={2.5} />
-                    : <span style={{ fontSize: '0.7rem', color: step === s.id ? '#111' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{s.id}</span>
-                  }
-                </div>
-                <span style={{
-                  fontSize: '0.63rem', letterSpacing: '0.05em', transition: 'color 0.2s',
-                  color: step === s.id ? '#C9A84C' : step > s.id ? 'rgba(201,168,76,0.55)' : 'rgba(255,255,255,0.2)',
-                  fontWeight: step === s.id ? 600 : 400,
-                }}>{s.label}</span>
-              </div>
-              {idx < STEPS.length - 1 && (
-                <div style={{
-                  height: 1, flex: 1, marginBottom: 18, transition: 'background 0.3s',
-                  background: step > s.id ? 'rgba(201,168,76,0.25)' : 'rgba(255,255,255,0.05)',
-                }} />
-              )}
-            </div>
-          ))}
+        {/* Tab bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{ display: 'flex' }}>
+            {TABS.map(t => {
+              const active = activeTab === t;
+              return (
+                <button key={t} onClick={() => setActiveTab(t)} className={`tab-btn${active ? ' active' : ''}`} style={{
+                  padding: '0 18px', height: 42, border: 'none', background: active ? '#F0F9FF' : 'none',
+                  fontFamily: 'inherit', fontSize: 13, cursor: 'pointer',
+                  color: active ? C.primary : '#64748B',
+                  fontWeight: active ? 600 : 400,
+                  borderBottom: active ? `2px solid ${C.primary}` : '2px solid transparent',
+                  transition: 'color 0.12s, background 0.12s',
+                }}>{t}</button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+            <Link href="/reservations" style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#64748B', textDecoration: 'none', fontSize: 12 }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = C.primary)}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = '#64748B')}
+            >
+              <ChevronLeft size={14} strokeWidth={2} />
+              Back
+            </Link>
+            <div style={{ width: 1, height: 16, background: C.cardBorder }} />
+            <span style={{ color: '#94A3B8', fontSize: 12 }}>Ref:</span>
+            <span style={{ fontWeight: 600, color: C.bodyText, fontSize: 12 }}>(New)</span>
+            <span style={{ background: '#EFF6FF', color: C.primary, border: '1px solid #BFDBFE', borderRadius: 20, fontSize: 11, fontWeight: 600, padding: '2px 10px' }}>
+              Enquiry
+            </span>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 288px', gap: '0.875rem', alignItems: 'start' }}>
-          <div>
-
-            {/* ══════════════════════════════════════════
-                STEP 1 — CLIENT
-            ══════════════════════════════════════════ */}
-            {step === 1 && (
-              <div>
-                {/* Lead client card */}
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Lead Client</h3>
-
-                  <Field label="Search existing client">
-                    <select style={INPUT} value={form.client_id} onChange={e => set('client_id', e.target.value)}>
-                      <option value="">— Create new client —</option>
-                      {mockClients.map(c => (
-                        <option key={c.id} value={c.id}>{c.full_name} · {c.nationality}</option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  {selectedClient ? (
-                    <div style={{
-                      background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.18)',
-                      borderRadius: 9, padding: '1rem 1.1rem', marginTop: '0.25rem',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
-                        <div style={{
-                          width: 36, height: 36, borderRadius: '50%', background: 'rgba(201,168,76,0.15)',
-                          border: '1px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', flexShrink: 0,
-                        }}>
-                          <span style={{ color: '#C9A84C', fontSize: '0.78rem', fontWeight: 700 }}>
-                            {selectedClient.full_name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <div style={{ color: '#fff', fontSize: '0.88rem', fontWeight: 600 }}>{selectedClient.full_name}</div>
-                          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem' }}>{selectedClient.nationality} · {selectedClient.email}</div>
-                        </div>
-                        {selectedClient.is_vip && (
-                          <span style={{ marginLeft: 'auto', background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '2px 9px', color: '#C9A84C', fontSize: '0.68rem', fontWeight: 600 }}>VIP</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 2rem' }}>
-                        {[
-                          ['Phone', selectedClient.phone],
-                          ['Passport', selectedClient.passport_number || '—'],
-                          ['WhatsApp', selectedClient.whatsapp || '—'],
-                          ['Dietary', selectedClient.dietary_restrictions || 'None'],
-                        ].map(([k, v]) => (
-                          <div key={k} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.73rem' }}>{k}</span>
-                            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.76rem' }}>{v}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <SectionHeader label="Personal details" />
-                      <Grid cols={2}>
-                        <Field label="Full Name *"><input style={INPUT} value={form.full_name} onChange={e => set('full_name', e.target.value)} placeholder="James & Sophie Whitfield" /></Field>
-                        <Field label="Company / Organisation"><input style={INPUT} value={form.company_name} onChange={e => set('company_name', e.target.value)} placeholder="Optional" /></Field>
-                        <Field label="Email Address *"><input style={INPUT} type="email" value={form.email} onChange={e => set('email', e.target.value)} /></Field>
-                        <Field label="Phone Number *"><input style={INPUT} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+44 7700 900000" /></Field>
-                        <Field label="WhatsApp"><input style={INPUT} value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} /></Field>
-                        <Field label="Nationality"><input style={INPUT} value={form.nationality} onChange={e => set('nationality', e.target.value)} /></Field>
-                        <Field label="Date of Birth"><input style={INPUT} type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} /></Field>
-                        <Field label="Dietary Restrictions"><input style={INPUT} value={form.dietary_restrictions} onChange={e => set('dietary_restrictions', e.target.value)} placeholder="Vegetarian, halal, nut allergy..." /></Field>
-                      </Grid>
-
-                      <SectionHeader label="Passport & travel documents" />
-                      <Grid cols={2}>
-                        <Field label="Passport Number"><input style={INPUT} value={form.passport_number} onChange={e => set('passport_number', e.target.value)} placeholder="AB1234567" /></Field>
-                        <Field label="Passport Expiry Date"><input style={INPUT} type="date" value={form.passport_expiry} onChange={e => set('passport_expiry', e.target.value)} /></Field>
-                      </Grid>
-                      <Field label="Medical Notes / Accessibility Requirements">
-                        <textarea style={{ ...TEXTAREA, minHeight: 60 }} value={form.medical_notes} onChange={e => set('medical_notes', e.target.value)} placeholder="Wheelchair access, medication, mobility requirements..." />
-                      </Field>
-                    </>
-                  )}
-                </div>
-
-                {/* Tags & Occasions */}
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Tags &amp; Occasions</h3>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-
-                    {/* VIP chip */}
-                    <button
-                      type="button"
-                      onClick={() => set('is_vip', !form.is_vip)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                        background: form.is_vip ? 'rgba(201,168,76,0.14)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${form.is_vip ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.1)'}`,
-                        color: form.is_vip ? '#C9A84C' : 'rgba(255,255,255,0.4)',
-                        fontSize: '0.78rem', fontWeight: 500,
-                      }}
-                    >
-                      <Star size={12} strokeWidth={2} fill={form.is_vip ? '#C9A84C' : 'none'} />
-                      VIP Client
-                    </button>
-
-                    {/* Occasion chips */}
-                    {OCCASION_CHIPS.map(({ key, label, icon }) => {
-                      const active = form.special_occasions.includes(key);
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => set('special_occasions', active
-                            ? form.special_occasions.filter(o => o !== key)
-                            : [...form.special_occasions, key])}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                            background: active ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${active ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.1)'}`,
-                            color: active ? '#fff' : 'rgba(255,255,255,0.4)',
-                            fontSize: '0.78rem', fontWeight: active ? 500 : 400,
-                          }}
-                        >
-                          {icon}
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Travellers */}
-                <div style={CARD}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.9rem', paddingBottom: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                    <div>
-                      <h3 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>Additional Travellers</h3>
-                      {travellers.length > 0 && (
-                        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.73rem' }}>{travellers.length} traveller{travellers.length > 1 ? 's' : ''} added</span>
-                      )}
-                    </div>
-                    <button onClick={addTraveller} style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      background: 'rgba(201,168,76,0.09)', border: '1px solid rgba(201,168,76,0.22)',
-                      borderRadius: 6, color: '#C9A84C', fontSize: '0.75rem', fontWeight: 500,
-                      padding: '5px 11px', cursor: 'pointer', flexShrink: 0,
-                    }}>
-                      <Plus size={12} strokeWidth={2.5} /> Add Traveller
-                    </button>
-                  </div>
-
-                  {travellers.length === 0 ? (
-                    <div style={{
-                      textAlign: 'center', padding: '1.25rem 0', color: 'rgba(255,255,255,0.2)',
-                      fontSize: '0.8rem', border: '1px dashed rgba(255,255,255,0.07)', borderRadius: 8,
-                    }}>
-                      No additional travellers. Use &ldquo;Add Traveller&rdquo; to capture passenger details.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                      {travellers.map((t, idx) => (
-                        <div key={t.id} style={{
-                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-                          borderRadius: 9, padding: '0.85rem 1rem',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                            <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Traveller {idx + 1}</span>
-                            <button onClick={() => removeTraveller(t.id)} style={{
-                              background: 'none', border: 'none', cursor: 'pointer', padding: 3,
-                              color: 'rgba(255,255,255,0.2)', display: 'flex',
-                            }}>
-                              <X size={13} strokeWidth={2} />
-                            </button>
-                          </div>
-                          <Grid cols={3}>
-                            <div style={{ gridColumn: '1 / 2' }}>
-                              <label style={LABEL}>Full Name</label>
-                              <input style={INPUT} placeholder="Full name" value={t.full_name} onChange={e => updateTraveller(t.id, 'full_name', e.target.value)} />
-                            </div>
-                            <div>
-                              <label style={LABEL}>Type</label>
-                              <select style={INPUT} value={t.type} onChange={e => updateTraveller(t.id, 'type', e.target.value)}>
-                                <option value="adult">Adult</option>
-                                <option value="child">Child</option>
-                                <option value="infant">Infant</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label style={LABEL}>Nationality</label>
-                              <input style={INPUT} placeholder="UK" value={t.nationality} onChange={e => updateTraveller(t.id, 'nationality', e.target.value)} />
-                            </div>
-                          </Grid>
-                          <Grid cols={3}>
-                            <div>
-                              <label style={LABEL}>Passport No.</label>
-                              <input style={INPUT} placeholder="AB123456" value={t.passport_number} onChange={e => updateTraveller(t.id, 'passport_number', e.target.value)} />
-                            </div>
-                            <div>
-                              <label style={LABEL}>Passport Expiry</label>
-                              <input style={INPUT} type="date" value={t.passport_expiry} onChange={e => updateTraveller(t.id, 'passport_expiry', e.target.value)} />
-                            </div>
-                            <div>
-                              <label style={LABEL}>Date of Birth</label>
-                              <input style={INPUT} type="date" value={t.date_of_birth} onChange={e => updateTraveller(t.id, 'date_of_birth', e.target.value)} />
-                            </div>
-                          </Grid>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Documents */}
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Documents</h3>
-
+        {/* Status pipeline */}
+        <div style={{ background: C.sectionBg, borderTop: `1px solid ${C.cardBorder}`, padding: '8px 24px', maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {STAGES.map((s, i) => (
+              <div key={s} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{
-                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 9, padding: '0.85rem 1rem', marginBottom: '0.875rem',
+                    width: 20, height: 20, borderRadius: '50%',
+                    border: `2px solid ${i === 0 ? C.primary : i === 1 ? C.primary : '#CBD5E1'}`,
+                    background: i === 0 ? C.primary : '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: i <= 1 ? `0 0 0 3px ${C.primaryBg}` : 'none',
                   }}>
-                    <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>Attach document</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
-                      <div>
-                        <label style={LABEL}>Type</label>
-                        <select style={INPUT} value={newDoc.doc_type} onChange={e => setNewDoc(d => ({ ...d, doc_type: e.target.value as DocEntry['doc_type'] }))}>
-                          {(Object.keys(DOC_TYPE_LABELS) as DocEntry['doc_type'][]).map(k => (
-                            <option key={k} value={k}>{DOC_TYPE_LABELS[k]}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={LABEL}>File Name / Reference</label>
-                        <input style={INPUT} placeholder="passport_james.pdf" value={newDoc.file_name} onChange={e => setNewDoc(d => ({ ...d, file_name: e.target.value }))}
-                          onKeyDown={e => e.key === 'Enter' && addDoc()} />
-                      </div>
-                      <div>
-                        <label style={LABEL}>Assigned To</label>
-                        <input style={INPUT} placeholder="James Whitfield" value={newDoc.assigned_to} onChange={e => setNewDoc(d => ({ ...d, assigned_to: e.target.value }))} />
-                      </div>
-                    </div>
-                    <button onClick={addDoc} style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: '0.76rem',
-                      padding: '6px 12px', cursor: 'pointer',
-                    }}>
-                      <Upload size={12} strokeWidth={2} /> Attach
-                    </button>
+                    {i === 0 && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                    {i === 1 && <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.primary }} />}
                   </div>
-
-                  {docs.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {docs.map(doc => (
-                        <div key={doc.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '0.65rem',
-                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                          borderRadius: 7, padding: '0.5rem 0.85rem',
-                        }}>
-                          <FileText size={13} strokeWidth={1.75} color={DOC_TYPE_COLORS[doc.doc_type]} />
-                          <span style={{
-                            background: DOC_TYPE_COLORS[doc.doc_type] + '1A', color: DOC_TYPE_COLORS[doc.doc_type],
-                            borderRadius: 4, padding: '1px 7px', fontSize: '0.67rem', fontWeight: 600, whiteSpace: 'nowrap',
-                          }}>{DOC_TYPE_LABELS[doc.doc_type]}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.79rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</span>
-                          {doc.assigned_to && (
-                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.73rem', whiteSpace: 'nowrap' }}>{doc.assigned_to}</span>
-                          )}
-                          <button onClick={() => removeDoc(doc.id)} style={{
-                            background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                            color: 'rgba(255,255,255,0.2)', display: 'flex',
-                          }}>
-                            <X size={12} strokeWidth={2} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: '0.77rem', textAlign: 'center', padding: '0.6rem 0', margin: 0 }}>
-                      No documents attached yet.
-                    </p>
-                  )}
+                  <span style={{
+                    fontSize: 10, marginTop: 4, whiteSpace: 'nowrap',
+                    color: i === 0 ? C.primary : i === 1 ? '#334155' : '#94A3B8',
+                    fontWeight: i <= 1 ? 600 : 400,
+                  }}>{s}</span>
                 </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                STEP 2 — TRAVEL
-            ══════════════════════════════════════════ */}
-            {step === 2 && (
-              <div>
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Trip Details</h3>
-                  <Grid cols={3}>
-                    <Field label="Arrival Date *"><input style={INPUT} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} /></Field>
-                    <Field label="Departure Date *"><input style={INPUT} type="date" value={form.departure_date} onChange={e => set('departure_date', e.target.value)} /></Field>
-                    <Field label="Purpose of Travel">
-                      <select style={INPUT} value={form.travel_purpose} onChange={e => set('travel_purpose', e.target.value)}>
-                        {['leisure','honeymoon','business','anniversary','birthday','group_tour','corporate','other'].map(p => (
-                          <option key={p} value={p}>{p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </Grid>
-                  <Grid cols={3}>
-                    <Field label="Adults *"><input style={INPUT} type="number" min={1} value={form.num_adults} onChange={e => set('num_adults', parseInt(e.target.value))} /></Field>
-                    <Field label="Children"><input style={INPUT} type="number" min={0} value={form.num_children} onChange={e => set('num_children', parseInt(e.target.value))} /></Field>
-                    <Field label="Infants"><input style={INPUT} type="number" min={0} value={form.num_infants} onChange={e => set('num_infants', parseInt(e.target.value))} /></Field>
-                  </Grid>
-                  <Field label="Destinations">
-                    <input style={INPUT} value={form.destinations} onChange={e => set('destinations', e.target.value)} placeholder="Colombo, Galle, Mirissa, Tangalle, Yala" />
-                  </Field>
-
-                  <SectionHeader label="Arrival flight" />
-                  <Grid cols={2}>
-                    <Field label="Flight Number"><input style={INPUT} value={form.flight_arrival} onChange={e => set('flight_arrival', e.target.value)} placeholder="EK651" /></Field>
-                    <Field label="Airport (IATA)"><input style={INPUT} value={form.airport_arrival} onChange={e => set('airport_arrival', e.target.value)} placeholder="CMB" /></Field>
-                  </Grid>
-
-                  <SectionHeader label="Departure flight" />
-                  <Grid cols={2}>
-                    <Field label="Flight Number"><input style={INPUT} value={form.flight_departure} onChange={e => set('flight_departure', e.target.value)} placeholder="EK652" /></Field>
-                    <Field label="Airport (IATA)"><input style={INPUT} value={form.airport_departure} onChange={e => set('airport_departure', e.target.value)} placeholder="CMB" /></Field>
-                  </Grid>
-                </div>
-
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Partner / Trade Source</h3>
-                  <Grid cols={2}>
-                    <Field label="Partner Agency">
-                      <select style={INPUT} value={form.partner_id} onChange={e => set('partner_id', e.target.value)}>
-                        <option value="">— Direct Booking —</option>
-                        {mockPartners.map(p => (
-                          <option key={p.id} value={p.id}>{p.company_name} ({p.commission_rate}%)</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Partner Booking Reference"><input style={INPUT} value={form.partner_reference} onChange={e => set('partner_reference', e.target.value)} placeholder="TUI-2026-XXXX" /></Field>
-                  </Grid>
-                  <Field label="Internal Notes">
-                    <textarea style={{ ...TEXTAREA, minHeight: 76 }} value={form.internal_notes} onChange={e => set('internal_notes', e.target.value)} placeholder="VIP arrangements, special flags, staff notes..." />
-                  </Field>
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                STEP 3 — ACCOMMODATION
-            ══════════════════════════════════════════ */}
-            {step === 3 && (
-              <div>
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Property 1</h3>
-                  <Grid cols={2}>
-                    <Field label="Hotel / Property Name"><input style={INPUT} value={form.hotel_name} onChange={e => set('hotel_name', e.target.value)} placeholder="Amangalla" /></Field>
-                    <Field label="Category">
-                      <select style={INPUT} value={form.hotel_category} onChange={e => set('hotel_category', e.target.value)}>
-                        {['3_star','4_star','5_star','luxury','villa','boutique'].map(c => (
-                          <option key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, x => x.toUpperCase())}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Check-In Date"><input style={INPUT} type="date" value={form.check_in} onChange={e => set('check_in', e.target.value)} /></Field>
-                    <Field label="Check-Out Date"><input style={INPUT} type="date" value={form.check_out} onChange={e => set('check_out', e.target.value)} /></Field>
-                    <Field label="Room Type">
-                      <select style={INPUT} value={form.room_type} onChange={e => set('room_type', e.target.value)}>
-                        {['single','double','twin','triple','suite','villa'].map(r => (
-                          <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Number of Rooms"><input style={INPUT} type="number" min={1} value={form.num_rooms} onChange={e => set('num_rooms', parseInt(e.target.value))} /></Field>
-                    <Field label="Meal Plan">
-                      <select style={INPUT} value={form.meal_plan} onChange={e => set('meal_plan', e.target.value)}>
-                        {[['RO','Room Only'],['BB','Bed & Breakfast'],['HB','Half Board'],['FB','Full Board'],['AI','All Inclusive']].map(([v, l]) => (
-                          <option key={v} value={v}>{v} — {l}</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </Grid>
-                  <Field label="Special Requests">
-                    <textarea style={{ ...TEXTAREA, minHeight: 68 }} value={form.special_requests} onChange={e => set('special_requests', e.target.value)} placeholder="Early check-in, late check-out, sea-view room, connecting rooms..." />
-                  </Field>
-                </div>
-
-                <div style={CARD}>
-                  <ToggleCard
-                    checked={form.has_second_property}
-                    onChange={v => set('has_second_property', v)}
-                    label="Add a second property to this itinerary"
-                  />
-                  {form.has_second_property && (
-                    <>
-                      <SectionHeader label="Property 2" />
-                      <Grid cols={2}>
-                        <Field label="Hotel / Property Name"><input style={INPUT} value={form.hotel2_name} onChange={e => set('hotel2_name', e.target.value)} placeholder="Cape Weligama" /></Field>
-                        <Field label="Category">
-                          <select style={INPUT} value={form.hotel2_category} onChange={e => set('hotel2_category', e.target.value)}>
-                            {['3_star','4_star','5_star','luxury','villa','boutique'].map(c => (
-                              <option key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, x => x.toUpperCase())}</option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Check-In Date"><input style={INPUT} type="date" value={form.hotel2_check_in} onChange={e => set('hotel2_check_in', e.target.value)} /></Field>
-                        <Field label="Check-Out Date"><input style={INPUT} type="date" value={form.hotel2_check_out} onChange={e => set('hotel2_check_out', e.target.value)} /></Field>
-                        <Field label="Room Type">
-                          <select style={INPUT} value={form.hotel2_room_type} onChange={e => set('hotel2_room_type', e.target.value)}>
-                            {['single','double','twin','triple','suite','villa'].map(r => (
-                              <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Number of Rooms"><input style={INPUT} type="number" min={1} value={form.hotel2_num_rooms} onChange={e => set('hotel2_num_rooms', parseInt(e.target.value))} /></Field>
-                        <Field label="Meal Plan">
-                          <select style={INPUT} value={form.hotel2_meal_plan} onChange={e => set('hotel2_meal_plan', e.target.value)}>
-                            {[['RO','Room Only'],['BB','Bed & Breakfast'],['HB','Half Board'],['FB','Full Board'],['AI','All Inclusive']].map(([v, l]) => (
-                              <option key={v} value={v}>{v} — {l}</option>
-                            ))}
-                          </select>
-                        </Field>
-                      </Grid>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                STEP 4 — TRANSFERS
-            ══════════════════════════════════════════ */}
-            {step === 4 && (
-              <div>
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Arrival Transfer</h3>
-                  <Grid cols={2}>
-                    <Field label="Pickup Location"><input style={INPUT} value={form.transfer_pickup} onChange={e => set('transfer_pickup', e.target.value)} placeholder="Bandaranaike International Airport" /></Field>
-                    <Field label="Drop-off Location"><input style={INPUT} value={form.transfer_dropoff} onChange={e => set('transfer_dropoff', e.target.value)} placeholder="Amangalla, Galle Fort" /></Field>
-                    <Field label="Transfer Date"><input style={INPUT} type="date" value={form.transfer_date} onChange={e => set('transfer_date', e.target.value)} /></Field>
-                    <Field label="Arrival Flight Number"><input style={INPUT} value={form.transfer_flight_number} onChange={e => set('transfer_flight_number', e.target.value)} placeholder="EK651" /></Field>
-                    <Field label="Vehicle Type">
-                      <select style={INPUT} value={form.vehicle_type} onChange={e => set('vehicle_type', e.target.value)}>
-                        {['car','van','minibus','coach','tuk_tuk'].map(v => (
-                          <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Number of Vehicles"><input style={INPUT} type="number" min={1} value={form.num_vehicles} onChange={e => set('num_vehicles', parseInt(e.target.value))} /></Field>
-                  </Grid>
-                  <ToggleCard checked={form.is_chauffeur} onChange={v => set('is_chauffeur', v)} label="Chauffeur-driven service" />
-                </div>
-
-                <div style={CARD}>
-                  <ToggleCard
-                    checked={form.has_departure_transfer}
-                    onChange={v => set('has_departure_transfer', v)}
-                    label="Include a departure / return transfer"
-                  />
-                  {form.has_departure_transfer && (
-                    <>
-                      <SectionHeader label="Departure transfer" />
-                      <Grid cols={2}>
-                        <Field label="Pickup Location"><input style={INPUT} value={form.dep_transfer_pickup} onChange={e => set('dep_transfer_pickup', e.target.value)} placeholder="Galle Fort" /></Field>
-                        <Field label="Drop-off Location"><input style={INPUT} value={form.dep_transfer_dropoff} onChange={e => set('dep_transfer_dropoff', e.target.value)} placeholder="Bandaranaike International Airport" /></Field>
-                        <Field label="Transfer Date"><input style={INPUT} type="date" value={form.dep_transfer_date} onChange={e => set('dep_transfer_date', e.target.value)} /></Field>
-                        <Field label="Departure Flight Number"><input style={INPUT} value={form.dep_transfer_flight_number} onChange={e => set('dep_transfer_flight_number', e.target.value)} placeholder="EK652" /></Field>
-                        <Field label="Vehicle Type">
-                          <select style={INPUT} value={form.dep_vehicle_type} onChange={e => set('dep_vehicle_type', e.target.value)}>
-                            {['car','van','minibus','coach','tuk_tuk'].map(v => (
-                              <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Number of Vehicles"><input style={INPUT} type="number" min={1} value={form.dep_num_vehicles} onChange={e => set('dep_num_vehicles', parseInt(e.target.value))} /></Field>
-                      </Grid>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                STEP 5 — FINANCE
-            ══════════════════════════════════════════ */}
-            {step === 5 && (
-              <div>
-                <div style={CARD}>
-                  <h3 style={CARD_TITLE}>Pricing</h3>
-                  <Grid cols={3}>
-                    <Field label="Currency">
-                      <select style={INPUT} value={form.currency} onChange={e => set('currency', e.target.value)}>
-                        {['GBP','USD','EUR','LKR','CNY'].map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Total Package Price"><input style={INPUT} type="number" value={form.total_cost} onChange={e => set('total_cost', e.target.value)} placeholder="0.00" /></Field>
-                    <Field label="Client&apos;s Budget"><input style={INPUT} value={form.budget_range} onChange={e => set('budget_range', e.target.value)} placeholder="£5,000 – £7,000" /></Field>
-                  </Grid>
-
-                  <SectionHeader label="Payment schedule" />
-                  <Grid cols={3}>
-                    <Field label="Deposit Amount"><input style={INPUT} type="number" value={form.deposit_amount} onChange={e => set('deposit_amount', e.target.value)} placeholder="0.00" /></Field>
-                    <Field label="Deposit Due Date"><input style={INPUT} type="date" value={form.deposit_due_date} onChange={e => set('deposit_due_date', e.target.value)} /></Field>
-                    <Field label="Balance Due Date"><input style={INPUT} type="date" value={form.balance_due_date} onChange={e => set('balance_due_date', e.target.value)} /></Field>
-                  </Grid>
-
-                  <SectionHeader label="Administration" />
-                  <Grid cols={2}>
-                    <Field label="Preferred Payment Method">
-                      <select style={INPUT} value={form.payment_method} onChange={e => set('payment_method', e.target.value)}>
-                        {['bank_transfer','card','stripe','cash','paypal'].map(m => (
-                          <option key={m} value={m}>{m.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Assigned Staff">
-                      <select style={INPUT} value={form.assigned_staff} onChange={e => set('assigned_staff', e.target.value)}>
-                        {['Nimsha','Dilhan','Kavindi','Sachini'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </Field>
-                  </Grid>
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                STEP 6 — REVIEW
-            ══════════════════════════════════════════ */}
-            {step === 6 && (
-              <div>
-                {[
-                  { label: 'Client', items: [
-                    ['Name', selectedClient ? selectedClient.full_name : form.full_name],
-                    ['Email', selectedClient ? selectedClient.email : form.email],
-                    ['Phone', selectedClient ? selectedClient.phone : form.phone],
-                    ['Passport', selectedClient ? selectedClient.passport_number : form.passport_number],
-                    ['VIP', form.is_vip ? 'Yes' : '—'],
-                    ['Occasions', form.special_occasions.map(o => o.charAt(0).toUpperCase() + o.slice(1)).join(', ') || '—'],
-                  ]},
-                  { label: `Travellers (${travellers.length})`, items: travellers.length
-                    ? travellers.map(t => [t.full_name || '(unnamed)', `${t.type}${t.nationality ? ` · ${t.nationality}` : ''}${t.passport_number ? ` · ${t.passport_number}` : ''}`])
-                    : [['Additional travellers', 'None added']]
-                  },
-                  { label: `Documents (${docs.length})`, items: docs.length
-                    ? docs.map(d => [DOC_TYPE_LABELS[d.doc_type], d.file_name + (d.assigned_to ? ` (${d.assigned_to})` : '')])
-                    : [['Attached documents', 'None']]
-                  },
-                  { label: 'Travel', items: [
-                    ['Arrival', form.arrival_date],
-                    ['Departure', form.departure_date],
-                    ['Pax', `${form.num_adults} adults${form.num_children ? `, ${form.num_children} children` : ''}${form.num_infants ? `, ${form.num_infants} infants` : ''}`],
-                    ['Destinations', form.destinations],
-                    ['Purpose', form.travel_purpose],
-                    ['Arrival Flight', form.flight_arrival],
-                    ['Departure Flight', form.flight_departure],
-                    ...(form.partner_id ? [['Partner', mockPartners.find(p => p.id === form.partner_id)?.company_name ?? '—']] : []),
-                  ]},
-                  { label: 'Accommodation', items: [
-                    ['Property 1', form.hotel_name],
-                    ['Check-In', form.check_in], ['Check-Out', form.check_out],
-                    ['Room', `${form.num_rooms}× ${form.room_type} · ${form.meal_plan}`],
-                    ...(form.has_second_property && form.hotel2_name ? [
-                      ['Property 2', form.hotel2_name],
-                      ['Check-In 2', form.hotel2_check_in], ['Check-Out 2', form.hotel2_check_out],
-                    ] : []),
-                  ]},
-                  { label: 'Transfers', items: [
-                    ['Arrival From', form.transfer_pickup], ['Arrival To', form.transfer_dropoff],
-                    ['Arrival Flight', form.transfer_flight_number],
-                    ...(form.has_departure_transfer ? [
-                      ['Departure From', form.dep_transfer_pickup], ['Departure To', form.dep_transfer_dropoff],
-                      ['Departure Flight', form.dep_transfer_flight_number],
-                    ] : []),
-                  ]},
-                  { label: 'Finance', items: [
-                    ['Currency', form.currency],
-                    ['Total Price', form.total_cost ? `${form.currency} ${Number(form.total_cost).toLocaleString()}` : '—'],
-                    ['Deposit', form.deposit_amount ? `${form.currency} ${Number(form.deposit_amount).toLocaleString()} · due ${form.deposit_due_date || '—'}` : '—'],
-                    ['Balance Due', form.balance_due_date || '—'],
-                    ['Payment', form.payment_method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())],
-                    ['Staff', form.assigned_staff],
-                  ]},
-                ].map(section => (
-                  <div key={section.label} style={{ ...CARD, marginBottom: '0.65rem' }}>
-                    <h4 style={{ color: '#C9A84C', fontSize: '0.65rem', letterSpacing: '0.11em', textTransform: 'uppercase', margin: '0 0 0.85rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(201,168,76,0.1)' }}>{section.label}</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1.5rem' }}>
-                      {(section.items as [string, string | undefined][]).map(([k, v]) => v && v !== '—' ? (
-                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>{k}</span>
-                          <span style={{ color: 'rgba(255,255,255,0.88)', fontSize: '0.79rem', fontWeight: 500, textAlign: 'right' }}>{String(v)}</span>
-                        </div>
-                      ) : null)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-          </div>
-
-          {/* ── Summary Sidebar ── */}
-          <div>
-            <div style={{ ...CARD, position: 'sticky', top: 64, marginBottom: 0 }}>
-
-              {/* Step progress */}
-              <div style={{ marginBottom: '1.1rem', paddingBottom: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: '0.6rem' }}>Progress</div>
-                <div style={{ display: 'flex', gap: '0.3rem' }}>
-                  {STEPS.map(s => (
-                    <div
-                      key={s.id}
-                      onClick={() => step > s.id && setStep(s.id)}
-                      style={{
-                        flex: 1, height: 3, borderRadius: 2, cursor: step > s.id ? 'pointer' : 'default',
-                        background: step > s.id ? '#C9A84C' : step === s.id ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.07)',
-                        transition: 'background 0.3s',
-                      }}
-                    />
-                  ))}
-                </div>
-                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.71rem', marginTop: '0.4rem' }}>
-                  Step {step} of {STEPS.length} — {STEPS[step - 1].label}
-                </div>
-              </div>
-
-              {/* Summary values */}
-              <div style={{ marginBottom: '1.1rem' }}>
-                {[
-                  ['Client', selectedClient?.full_name || form.full_name || '—'],
-                  ['Arrival', form.arrival_date || '—'],
-                  ['Departure', form.departure_date || '—'],
-                  ['Guests', form.num_adults ? `${form.num_adults + form.num_children + form.num_infants} pax` : '—'],
-                  ['Destinations', form.destinations || '—'],
-                  ['Hotel', form.hotel_name || '—'],
-                  ['Total', form.total_cost ? `${form.currency} ${Number(form.total_cost).toLocaleString()}` : '—'],
-                  ['Deposit', form.deposit_amount ? `${form.currency} ${Number(form.deposit_amount).toLocaleString()}` : '—'],
-                ].map(([k, v]) => (
-                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.45rem' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.71rem' }}>{k}</span>
-                    <span style={{
-                      color: v === '—' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.8)',
-                      fontSize: '0.74rem', maxWidth: '58%', textAlign: 'right',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Traveller / doc counts */}
-              {(travellers.length > 0 || docs.length > 0) && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '0.7rem', marginBottom: '1rem' }}>
-                  {travellers.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.71rem' }}>Travellers</span>
-                      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.74rem' }}>{travellers.length}</span>
-                    </div>
-                  )}
-                  {docs.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: '0.71rem' }}>Documents</span>
-                      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.74rem' }}>{docs.length}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {step < 6 && (
-                  <button onClick={() => setStep(s => s + 1)} style={{
-                    background: '#C9A84C', color: '#0D0D0D', border: 'none',
-                    padding: '0.72rem', borderRadius: 8, fontSize: '0.8rem',
-                    fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                    cursor: 'pointer', width: '100%',
-                  }}>
-                    Continue →
-                  </button>
-                )}
-                {step === 6 && (
-                  <button onClick={handleSubmit} disabled={saving} style={{
-                    background: saving ? 'rgba(201,168,76,0.45)' : '#C9A84C',
-                    color: '#0D0D0D', border: 'none',
-                    padding: '0.72rem', borderRadius: 8, fontSize: '0.8rem',
-                    fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                    cursor: saving ? 'not-allowed' : 'pointer', width: '100%',
-                  }}>
-                    {saving ? 'Creating…' : 'Create Reservation'}
-                  </button>
-                )}
-                {step > 1 && (
-                  <button onClick={() => setStep(s => s - 1)} style={{
-                    background: 'none', color: 'rgba(255,255,255,0.35)',
-                    border: '1px solid rgba(255,255,255,0.09)',
-                    padding: '0.62rem', borderRadius: 8, fontSize: '0.77rem',
-                    cursor: 'pointer', width: '100%',
-                  }}>
-                    ← Back
-                  </button>
+                {i < STAGES.length - 1 && (
+                  <div style={{ flex: 1, height: 2, borderRadius: 1, background: i < 1 ? C.primary : '#E2E8F0', margin: '0 0 18px' }} />
                 )}
               </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* ── Page content ── */}
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px 48px' }}>
+
+        {/* Page title row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Link href="/reservations" style={{ fontSize: 12, color: C.mutedText, textDecoration: 'none' }}>Reservations</Link>
+              <span style={{ fontSize: 12, color: C.mutedText }}>/</span>
+              <span style={{ fontSize: 12, color: C.bodyText, fontWeight: 500 }}>New Reservation</span>
+            </div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: C.bodyText, margin: 0 }}>Create New Reservation</h1>
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 20px', borderRadius: 8, border: 'none',
+              background: saving ? '#94A3B8' : C.primary,
+              color: '#fff', fontSize: 13, fontWeight: 600,
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', boxShadow: saving ? 'none' : '0 1px 3px rgba(30,64,175,0.3)',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => { if (!saving) (e.currentTarget as HTMLElement).style.background = '#1E3A8A'; }}
+            onMouseLeave={e => { if (!saving) (e.currentTarget as HTMLElement).style.background = C.primary; }}
+          >
+            <Save size={14} strokeWidth={2} />
+            {saving ? 'Creating…' : 'Create Reservation'}
+          </button>
+        </div>
+
+        {/* Two-column layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 272px', gap: 16, alignItems: 'start' }}>
+
+          {/* ── Left: form cards ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Card helper */}
+            {([
+              // [0] General Information
+              {
+                title: 'General Information',
+                content: (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                      <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td style={labelCell}><span style={{ color: C.required }}>* </span>Res. #</td>
+                        <td style={{ ...inputCell, background: '#F8FAFC', fontStyle: 'italic', color: C.mutedText, fontSize: 12 }}>
+                          Auto-generated
+                        </td>
+                        <td style={labelCell}>Res. Date</td>
+                        <td style={{ ...inputCell, borderRight: 'none' }}>
+                          <input type="date" style={fieldInput} />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={labelCell}>Source</td>
+                        <td style={inputCell}>
+                          <select style={{ ...fieldInput, cursor: 'pointer' }} value={form.source} onChange={e => set('source', e.target.value)}>
+                            {['Direct','Walk-in','Partner','Referral','Online','Other'].map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        </td>
+                        <td style={labelCell}>Res. By</td>
+                        <td style={{ ...inputCell, borderRight: 'none' }}>
+                          <select style={{ ...fieldInput, cursor: 'pointer' }} value={form.assigned_staff} onChange={e => set('assigned_staff', e.target.value)}>
+                            {['Unassigned','Nimsha','Dilhan','Kavindi','Sachini'].map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ ...labelCell, borderBottom: 'none' }}>Travel Type</td>
+                        <td style={inputCell}>
+                          <select style={{ ...fieldInput, cursor: 'pointer' }} value={form.travel_purpose} onChange={e => set('travel_purpose', e.target.value as TravelPurpose)}>
+                            {['leisure','honeymoon','business','anniversary','birthday','corporate','group_tour','other'].map(p => (
+                              <option key={p} value={p}>{p.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ ...labelCell, borderBottom: 'none' }}>Budget</td>
+                        <td style={{ ...inputCell, borderRight: 'none', borderBottom: 'none' }}>
+                          <input style={fieldInput} value={form.budget_range} onChange={e => set('budget_range', e.target.value)} placeholder="e.g. $3,000 – $5,000" />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ),
+              },
+              // [1] Customer Information
+              {
+                title: 'Customer Information',
+                content: (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                      <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td style={labelCell}><span style={{ color: C.required }}>* </span>Name</td>
+                        <td colSpan={3} style={{ ...inputCell, borderRight: 'none' }}>
+                          <select style={{ ...fieldInput, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${C.cardBorder}`, cursor: 'pointer' }}
+                            value={form.client_id} onChange={e => {
+                              const c = clients.find(c => c.id === e.target.value);
+                              set('client_id', e.target.value);
+                              if (c) { set('full_name', c.full_name); set('nationality', c.nationality ?? ''); set('email', c.email ?? ''); set('phone', c.phone ?? ''); set('passport_number', c.passport_number ?? ''); }
+                            }}>
+                            <option value="">— Create new client —</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                          </select>
+                          <input style={{ ...fieldInput, paddingTop: 2 }} value={form.full_name} onChange={e => set('full_name', e.target.value)} placeholder="Full name" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={labelCell}>Nationality</td>
+                        <td style={inputCell}>
+                          <input style={fieldInput} value={form.nationality} onChange={e => set('nationality', e.target.value)} placeholder="e.g. British" />
+                        </td>
+                        <td style={labelCell}>Passport No</td>
+                        <td style={{ ...inputCell, borderRight: 'none' }}>
+                          <input style={fieldInput} value={form.passport_number} onChange={e => set('passport_number', e.target.value)} placeholder="AB1234567" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ ...labelCell, borderBottom: 'none' }}>Email</td>
+                        <td style={inputCell}>
+                          <input type="email" style={fieldInput} value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
+                        </td>
+                        <td style={{ ...labelCell, borderBottom: 'none' }}>Phone</td>
+                        <td style={{ ...inputCell, borderRight: 'none', borderBottom: 'none' }}>
+                          <input style={fieldInput} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+44 7700 900000" />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ),
+              },
+            ] as { title: string; content: React.ReactNode }[]).map(({ title, content }) => (
+              <div key={title} style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+                <div style={secHeader}>{title}</div>
+                {content}
+              </div>
+            ))}
+
+            {/* Arrival + Departure side-by-side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {[
+                {
+                  title: 'Arrival Information',
+                  rows: [
+                    { label: '* Date / Time', node: (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input type="date" style={{ ...fieldInput, flex: 2 }} value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
+                        <input type="time" style={{ ...fieldInput, flex: 1 }} value={form.arrival_time} onChange={e => set('arrival_time', e.target.value)} />
+                      </div>
+                    )},
+                    { label: '* Airport', node: <input style={fieldInput} value={form.airport_arrival} onChange={e => set('airport_arrival', e.target.value)} placeholder="CMB — Bandaranaike Intl" /> },
+                    { label: 'Flight #', node: <input style={fieldInput} value={form.flight_arrival} onChange={e => set('flight_arrival', e.target.value)} placeholder="EK651" /> },
+                    { label: 'Memo', node: <input style={fieldInput} value={form.arrival_memo} onChange={e => set('arrival_memo', e.target.value)} placeholder="Meet & greet notes…" />, last: true },
+                  ],
+                },
+                {
+                  title: 'Departure Information',
+                  rows: [
+                    { label: '* Date / Time', node: (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input type="date" style={{ ...fieldInput, flex: 2 }} value={form.departure_date} onChange={e => set('departure_date', e.target.value)} />
+                        <input type="time" style={{ ...fieldInput, flex: 1 }} value={form.departure_time} onChange={e => set('departure_time', e.target.value)} />
+                      </div>
+                    )},
+                    { label: '* Airport', node: <input style={fieldInput} value={form.airport_departure} onChange={e => set('airport_departure', e.target.value)} placeholder="CMB — Bandaranaike Intl" /> },
+                    { label: 'Flight #', node: <input style={fieldInput} value={form.flight_departure} onChange={e => set('flight_departure', e.target.value)} placeholder="EK652" /> },
+                    { label: 'Memo', node: <input style={fieldInput} value={form.departure_memo} onChange={e => set('departure_memo', e.target.value)} placeholder="Drop-off notes…" />, last: true },
+                  ],
+                },
+              ].map(({ title, rows }) => (
+                <div key={title} style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+                  <div style={secHeader}>{title}</div>
+                  {rows.map(({ label, node, last }) => (
+                    <div key={label} style={{ display: 'flex', borderBottom: last ? 'none' : `1px solid ${C.divider}` }}>
+                      <div style={{ padding: '9px 14px', fontSize: 12, color: C.labelText, fontWeight: 500, background: C.cardBg, width: '40%', flexShrink: 0, display: 'flex', alignItems: 'center', borderRight: `1px solid ${C.divider}` }}>
+                        {label.startsWith('*') ? <><span style={{ color: C.required, marginRight: 3 }}>*</span>{label.slice(2)}</> : label}
+                      </div>
+                      <div style={{ flex: 1, padding: '7px 10px', background: C.inputBg, display: 'flex', alignItems: 'center' }}>
+                        {node}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Pax & Trip Duration side-by-side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+
+              {/* Pax */}
+              <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+                <div style={secHeader}>Pax &amp; Group Details</div>
+                {[
+                  { label: '* Adults', value: form.num_adults, key: 'num_adults', min: 1 },
+                  { label: 'Children', value: form.num_children, key: 'num_children', min: 0 },
+                  { label: 'Infants',  value: form.num_infants,  key: 'num_infants',  min: 0 },
+                ].map(({ label, value, key, min }, i, arr) => (
+                  <div key={label} style={{ display: 'flex', borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
+                    <div style={{ padding: '9px 14px', fontSize: 12, color: C.labelText, fontWeight: 500, background: C.cardBg, width: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', borderRight: `1px solid ${C.divider}` }}>
+                      {label.startsWith('*') ? <><span style={{ color: C.required, marginRight: 3 }}>*</span>{label.slice(2)}</> : label}
+                    </div>
+                    <div style={{ flex: 1, padding: '7px 10px', background: C.inputBg, display: 'flex', alignItems: 'center' }}>
+                      <input type="number" min={min} style={{ ...fieldInput, width: 64, textAlign: 'center' }}
+                        value={value} onChange={e => set(key, Math.max(min, parseInt(e.target.value) || 0))} />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', borderTop: `1px solid ${C.divider}` }}>
+                  <div style={{ padding: '9px 14px', fontSize: 12, color: C.labelText, fontWeight: 500, background: C.cardBg, width: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', borderRight: `1px solid ${C.divider}` }}>
+                    Total Pax
+                  </div>
+                  <div style={{ flex: 1, padding: '9px 14px', background: C.sectionBg, fontSize: 13, fontWeight: 700, color: C.bodyText }}>
+                    {totalPax} pax
+                  </div>
+                </div>
+              </div>
+
+              {/* Trip Duration */}
+              <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+                <div style={secHeader}>Trip Duration &amp; Destinations</div>
+                <div style={{ display: 'flex', borderBottom: `1px solid ${C.divider}` }}>
+                  <div style={{ padding: '9px 14px', fontSize: 12, color: C.labelText, fontWeight: 500, background: C.cardBg, width: '40%', flexShrink: 0, display: 'flex', alignItems: 'center', borderRight: `1px solid ${C.divider}` }}>
+                    Duration
+                  </div>
+                  <div style={{ flex: 1, padding: '9px 14px', background: C.sectionBg, fontSize: 13, fontWeight: 700, color: nights ? C.bodyText : C.mutedText }}>
+                    {nights ? `${nights} nights` : '—'}
+                  </div>
+                </div>
+                <div style={{ padding: '10px 14px' }}>
+                  <p style={{ fontSize: 11, color: C.mutedText, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>Destinations</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {form.destinations.map(d => (
+                      <span key={d} className="chip-dest">
+                        <MapPin size={10} strokeWidth={2.5} />
+                        {d}
+                        <button onClick={() => removeDest(d)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', lineHeight: 1 }}>
+                          <X size={10} color={C.primary} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    style={{ ...fieldInput, border: `1px solid ${C.cardBorder}`, borderRadius: 6, padding: '7px 10px', background: C.inputBg, fontSize: 12 }}
+                    value={form.destInput}
+                    onChange={e => set('destInput', e.target.value)}
+                    onKeyDown={addDest}
+                    placeholder="Type destination + Enter"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Partner / Trade Source */}
+            <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+              <div style={secHeader}>Partner / Trade Source</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                  <col style={{ width: '22%' }} /><col style={{ width: '28%' }} />
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td style={{ ...labelCell, borderBottom: 'none' }}>Partner Agency</td>
+                    <td style={inputCell}>
+                      <select style={{ ...fieldInput, cursor: 'pointer' }} value={form.partner_id} onChange={e => set('partner_id', e.target.value)}>
+                        <option value="">— Direct Booking —</option>
+                        {partners.map(p => <option key={p.id} value={p.id}>{p.company_name}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ ...labelCell, borderBottom: 'none' }}>Partner Ref</td>
+                    <td style={{ ...inputCell, borderRight: 'none', borderBottom: 'none' }}>
+                      <input style={fieldInput} value={form.partner_reference} onChange={e => set('partner_reference', e.target.value)} placeholder="TUI-2026-XXXX" />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Internal Notes */}
+            <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+              <div style={secHeader}>Internal Notes / Memo</div>
+              <div style={{ padding: 14 }}>
+                <textarea
+                  style={{ ...fieldInput, border: `1px solid ${C.cardBorder}`, borderRadius: 6, padding: '10px 12px', background: C.inputBg, minHeight: 88, resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+                  value={form.internal_notes}
+                  onChange={e => set('internal_notes', e.target.value)}
+                  placeholder="Add internal notes, special requests, or team instructions…"
+                />
+                <p style={{ fontSize: 11, color: C.mutedText, marginTop: 4, textAlign: 'right' }}>{form.internal_notes.length} characters</p>
+              </div>
+            </div>
+
+            {/* Attach Documents */}
+            <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+              <div style={{ ...secHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Paperclip size={12} strokeWidth={2} />Attach Documents</span>
+                {attachedDocs.length > 0 && (
+                  <span style={{ fontSize: 11, color: C.primary, fontWeight: 600, letterSpacing: 0, textTransform: 'none' }}>
+                    {attachedDocs.length} file{attachedDocs.length > 1 ? 's' : ''} attached
+                  </span>
+                )}
+              </div>
+              <div style={{ padding: 14 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: attachedDocs.length ? 12 : 0 }}>
+                  {DOC_TYPES.map(type => (
+                    <button key={type} className="doc-btn" onClick={() => handleFileChange(type)}>{type}</button>
+                  ))}
+                </div>
+                {attachedDocs.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 10, borderTop: `1px solid ${C.divider}` }}>
+                    {attachedDocs.map((d, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: C.primaryBg, color: C.primary, border: '1px solid #BFDBFE', borderRadius: 6, padding: '4px 10px', fontSize: 12 }}>
+                        {d.type}: {d.name}
+                        <button onClick={() => setAttachedDocs(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
+                          <X size={10} color={C.primary} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>{/* end left column */}
+
+          {/* ── Right sidebar: Charges Summary ── */}
+          <div style={{ position: 'sticky', top: 180 }}>
+            <div style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+
+              {/* Header */}
+              <div style={{ ...secHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px' }}>
+                <span>Charges Summary</span>
+                <span style={{ fontSize: 10, fontWeight: 700, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', borderRadius: 20, padding: '2px 8px', textTransform: 'none', letterSpacing: 0 }}>
+                  PENDING
+                </span>
+              </div>
+
+              {/* Rate + Currency */}
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.divider}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { label: '* Rate code', el: (
+                    <select style={{ ...fieldInput, border: `1px solid ${C.cardBorder}`, borderRadius: 5, padding: '5px 8px', background: C.inputBg, fontSize: 12, cursor: 'pointer' }} value={form.rate_code} onChange={e => set('rate_code', e.target.value)}>
+                      {['leisure','corporate','group','vip','honeymoon'].map(r => <option key={r}>{r}</option>)}
+                    </select>
+                  )},
+                  { label: '* Currency', el: (
+                    <select style={{ ...fieldInput, border: `1px solid ${C.cardBorder}`, borderRadius: 5, padding: '5px 8px', background: C.inputBg, fontSize: 12, cursor: 'pointer' }} value={form.currency} onChange={e => set('currency', e.target.value as Currency)}>
+                      {['USD','GBP','EUR','LKR'].map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  )},
+                ].map(({ label, el }) => (
+                  <div key={label}>
+                    <label style={{ fontSize: 11, color: C.labelText, fontWeight: 500, display: 'block', marginBottom: 4 }}>{label}</label>
+                    {el}
+                  </div>
+                ))}
+              </div>
+
+              {/* Cost lines */}
+              <div style={{ padding: '8px 0' }}>
+                {[
+                  ['Accommodation','—'],
+                  ['Transport','—'],
+                  ['Activities','—'],
+                  ['Guide Fees','—'],
+                  ['Miscellaneous','—'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: 13 }}>
+                    <span style={{ color: C.labelText }}>{k}</span>
+                    <span style={{ color: C.mutedText, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ height: 1, background: C.divider, margin: '0 16px' }} />
+
+              {/* Discount */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>Discount</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select style={{ fontSize: 12, border: `1px solid ${C.cardBorder}`, borderRadius: 4, padding: '2px 4px', fontFamily: 'inherit', background: C.inputBg }} value={form.discount_pct} onChange={e => set('discount_pct', parseInt(e.target.value))}>
+                    {[0,5,10,15,20].map(p => <option key={p} value={p}>{p}%</option>)}
+                  </select>
+                  <span style={{ color: C.mutedText, fontVariantNumeric: 'tabular-nums' }}>0.00</span>
+                </div>
+              </div>
+
+              {/* Surcharges */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>Surcharges</span>
+                <span style={{ color: C.bodyText, fontVariantNumeric: 'tabular-nums' }}>0.00</span>
+              </div>
+
+              <div style={{ height: 1, background: C.cardBorder, margin: '4px 0' }} />
+
+              {/* Net total */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>Net total</span>
+                <span style={{ color: C.mutedText }}>—</span>
+              </div>
+
+              {/* VAT */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>VAT</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select style={{ fontSize: 12, border: `1px solid ${C.cardBorder}`, borderRadius: 4, padding: '2px 4px', fontFamily: 'inherit', background: C.inputBg }} value={form.vat_pct} onChange={e => set('vat_pct', parseInt(e.target.value))}>
+                    {[0,5,8,10,15].map(p => <option key={p} value={p}>{p}%</option>)}
+                  </select>
+                  <span style={{ color: C.bodyText, fontVariantNumeric: 'tabular-nums' }}>0.00</span>
+                </div>
+              </div>
+
+              {/* Total */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: C.sectionBg, borderTop: `1px solid ${C.cardBorder}`, borderBottom: `1px solid ${C.cardBorder}` }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.bodyText }}>Total</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.mutedText, fontVariantNumeric: 'tabular-nums' }}>—</span>
+              </div>
+
+              {/* Commission */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>Commission</span>
+                <span style={{ color: C.bodyText, fontVariantNumeric: 'tabular-nums' }}>0.00</span>
+              </div>
+
+              {/* Paid / Balance */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 16px', fontSize: 13 }}>
+                <span style={{ color: C.labelText }}>Paid / Balance</span>
+                <span style={{ color: C.primary, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>0.00 / 0.00</span>
+              </div>
+
+              <div style={{ height: 1, background: C.divider }} />
+
+              {/* Action links */}
+              <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {['Record Payment','Send Invoice','Build Itinerary','Send Itinerary PDF','Send WhatsApp Update'].map(action => (
+                  <button key={action} className="action-link" style={{ color: C.primary }}>{action}</button>
+                ))}
+              </div>
+
+              {/* Create button */}
+              <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.divider}` }}>
+                <button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                  style={{
+                    width: '100%', background: saving ? '#94A3B8' : C.primary,
+                    color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '10px 0', fontSize: 13, fontWeight: 700,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit', letterSpacing: '0.02em',
+                    transition: 'background 0.12s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  }}
+                  onMouseEnter={e => { if (!saving) (e.currentTarget as HTMLElement).style.background = '#1E3A8A'; }}
+                  onMouseLeave={e => { if (!saving) (e.currentTarget as HTMLElement).style.background = C.primary; }}
+                >
+                  <Save size={14} strokeWidth={2} />
+                  {saving ? 'Creating…' : 'Create Reservation'}
+                </button>
+              </div>
+
+            </div>
+          </div>{/* end sidebar */}
+
+        </div>{/* end grid */}
+      </div>{/* end page content */}
+
+      <input ref={fileRef} type="file" style={{ display: 'none' }} />
     </div>
   );
 }

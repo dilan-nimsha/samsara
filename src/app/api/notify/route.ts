@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 type NotifyPayload = {
   type: 'email' | 'whatsapp' | 'both';
   to_email?: string;
@@ -25,12 +34,12 @@ async function sendEmail(payload: NotifyPayload) {
           <p style="color:#C9A84C;font-size:11px;letter-spacing:4px;text-transform:uppercase;margin:0">SAMSARA TRAVEL</p>
         </div>
         <div style="background:#141414;border:1px solid rgba(255,255,255,0.06);padding:40px;border-radius:4px">
-          <p style="color:rgba(255,255,255,0.5);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px">Dear ${payload.client_name}</p>
-          <div style="color:rgba(242,237,228,0.85);font-size:15px;line-height:1.8;white-space:pre-line">${payload.message}</div>
+          <p style="color:rgba(255,255,255,0.5);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px">Dear ${escHtml(payload.client_name)}</p>
+          <div style="color:rgba(242,237,228,0.85);font-size:15px;line-height:1.8;white-space:pre-line">${escHtml(payload.message)}</div>
           ${payload.reservation_reference ? `
           <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06)">
             <p style="color:rgba(255,255,255,0.3);font-size:11px;letter-spacing:2px">BOOKING REFERENCE</p>
-            <p style="color:#C9A84C;font-size:16px;font-weight:bold;margin:4px 0 0">${payload.reservation_reference}</p>
+            <p style="color:#C9A84C;font-size:16px;font-weight:bold;margin:4px 0 0">${escHtml(payload.reservation_reference)}</p>
           </div>` : ''}
         </div>
         <p style="color:rgba(255,255,255,0.2);font-size:11px;text-align:center;margin-top:24px">
@@ -56,7 +65,7 @@ async function sendWhatsApp(payload: NotifyPayload) {
   if (!accountSid || !authToken) throw new Error('Twilio credentials not configured');
   const from = process.env.TWILIO_WHATSAPP_FROM ?? 'whatsapp:+14155238886';
 
-  const body = `*SAMSARA TRAVEL*\n\nDear ${payload.client_name},\n\n${payload.message}${payload.reservation_reference ? `\n\n*Booking Reference:* ${payload.reservation_reference}` : ''}`;
+  const body = `*SAMSARA TRAVEL*\n\nDear ${payload.client_name},\n\n${payload.message}${payload.reservation_reference ? `\n\n*Booking Reference:* ${payload.reservation_reference}` : ''}`; // WhatsApp is plain text — no escaping needed
 
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -80,6 +89,13 @@ async function sendWhatsApp(payload: NotifyPayload) {
 export async function POST(req: NextRequest) {
   try {
     const payload: NotifyPayload = await req.json();
+
+    if (!payload.client_name?.trim() || !payload.subject?.trim() || !payload.message?.trim()) {
+      return NextResponse.json({ success: false, error: 'client_name, subject, and message are required' }, { status: 400 });
+    }
+    if (!['email', 'whatsapp', 'both'].includes(payload.type)) {
+      return NextResponse.json({ success: false, error: 'type must be email, whatsapp, or both' }, { status: 400 });
+    }
 
     const results: Record<string, unknown> = {};
 

@@ -1,12 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from '@/lib/toast';
 import {
   Inbox, Send, FileText, Star, AlertOctagon,
   Trash2, Archive, Tag, RefreshCw, Pencil,
-  Paperclip, ChevronDown, X,
+  Paperclip, ChevronDown, X, Mail, ChevronRight, Clock,
 } from 'lucide-react';
+
+// ── Extra types ────────────────────────────────────────────────────────────────
+
+type WebBooking = {
+  id: string; reference: string; status: string;
+  arrival_date: string; total_cost: number; created_at: string;
+  client?: { full_name: string; email: string; phone: string };
+  internal_notes?: string;
+};
+
+type GmailMsg = {
+  uid: number; subject: string; from: string; fromEmail: string;
+  date: string; preview: string; unread: boolean;
+};
+
+function parseNotes(raw?: string) {
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function fmtDate(d: string) {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  catch { return d; }
+}
+function statusColor(s: string) {
+  if (s === 'enquiry') return '#2563EB';
+  if (s === 'confirmed' || s === 'paid') return '#16A34A';
+  if (s === 'cancelled') return '#DC2626';
+  return '#D97706';
+}
+function statusLabel(s: string) { return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+function nameInitials(name: string) { return name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '??'; }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -485,15 +516,52 @@ const LABELS = [
 // ── Page component ─────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const [folder,       setFolder]       = useState('inbox');
-  const [selected,     setSelected]     = useState<Email | null>(FOLDER_DATA.inbox[0]);
-  const [labelsOpen,   setLabelsOpen]   = useState(true);
-  const [activeLabel,  setActiveLabel]  = useState<string | null>(null);
-  const [refreshing,   setRefreshing]   = useState(false);
-  const [replyText,    setReplyText]    = useState('');
-  const [showCompose,  setShowCompose]  = useState(false);
-  const [compose,      setCompose]      = useState({ to: '', subject: '', body: '' });
-  const [sentEmails,   setSentEmails]   = useState<Email[]>(FOLDER_DATA.sent ?? []);
+  const [folder,         setFolder]         = useState('inbox');
+  const [selected,       setSelected]       = useState<Email | null>(FOLDER_DATA.inbox[0]);
+  const [labelsOpen,     setLabelsOpen]     = useState(true);
+  const [activeLabel,    setActiveLabel]    = useState<string | null>(null);
+  const [refreshing,     setRefreshing]     = useState(false);
+  const [replyText,      setReplyText]      = useState('');
+  const [showCompose,    setShowCompose]    = useState(false);
+  const [compose,        setCompose]        = useState({ to: '', subject: '', body: '' });
+  const [sentEmails,     setSentEmails]     = useState<Email[]>(FOLDER_DATA.sent ?? []);
+  const [bookings,       setBookings]       = useState<WebBooking[]>([]);
+  const [selBooking,     setSelBooking]     = useState<WebBooking | null>(null);
+  const [loadingRes,     setLoadingRes]     = useState(false);
+  const [gmailMsgs,      setGmailMsgs]     = useState<GmailMsg[]>([]);
+  const [selGmail,       setSelGmail]       = useState<GmailMsg | null>(null);
+  const [loadingGmail,   setLoadingGmail]   = useState(false);
+
+  const loadBookings = useCallback(async () => {
+    setLoadingRes(true);
+    try {
+      const res  = await fetch('/api/bookings');
+      const data = await res.json();
+      if (data.success && data.reservations) {
+        const sorted = [...data.reservations].sort((a: WebBooking, b: WebBooking) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setBookings(sorted);
+        setSelBooking(prev => prev ?? sorted[0] ?? null);
+      }
+    } catch { /* ignore */ } finally { setLoadingRes(false); }
+  }, []);
+
+  const loadGmail = useCallback(async () => {
+    setLoadingGmail(true);
+    try {
+      const res  = await fetch('/api/gmail');
+      const data = await res.json();
+      if (data.success) {
+        setGmailMsgs(data.emails ?? []);
+        setSelGmail(prev => prev ?? data.emails?.[0] ?? null);
+      } else {
+        toast.error('Could not load Gmail — check IMAP is enabled');
+      }
+    } catch { toast.error('Gmail connection failed'); }
+    finally { setLoadingGmail(false); }
+  }, []);
+
+  useEffect(() => { loadBookings(); }, [loadBookings]);
 
   const rawEmails = folder === 'sent' ? sentEmails : (FOLDER_DATA[folder] ?? []);
   const emails = activeLabel
@@ -503,6 +571,8 @@ export default function InboxPage() {
   function openFolder(key: string) {
     setFolder(key);
     setActiveLabel(null);
+    if (key === 'reservations') { setSelBooking(bookings[0] ?? null); return; }
+    if (key === 'gmail') { if (gmailMsgs.length === 0) loadGmail(); setSelGmail(gmailMsgs[0] ?? null); return; }
     setSelected((key === 'sent' ? sentEmails : FOLDER_DATA[key])?.[0] ?? null);
   }
 
@@ -518,12 +588,13 @@ export default function InboxPage() {
     setSelected(null);
   }
 
-  function handleRefresh() {
+  async function handleRefresh() {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      toast.success('Inbox refreshed');
-    }, 800);
+    if (folder === 'reservations') { await loadBookings(); }
+    else if (folder === 'gmail') { await loadGmail(); }
+    else { await new Promise(r => setTimeout(r, 600)); }
+    setRefreshing(false);
+    toast.success('Refreshed');
   }
 
   function handleSendReply() {
@@ -642,6 +713,43 @@ export default function InboxPage() {
         {/* Divider */}
         <div style={{ height: 1, background: '#F0F0F0', margin: '10px 12px' }} />
 
+        {/* Reservations section */}
+        <div style={{ padding: '0 6px' }}>
+          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BBBBBB', margin: '0 0 4px', padding: '0 10px' }}>
+            Reservations
+          </p>
+          {[
+            { key: 'reservations', label: 'Samsara Bookings', icon: Inbox,  badge: bookings.filter(b => b.status === 'enquiry').length },
+            { key: 'gmail',        label: 'Gmail Inbox',      icon: Mail,   badge: gmailMsgs.filter(m => m.unread).length },
+          ].map(({ key, label, icon: Icon, badge }) => {
+            const active = folder === key;
+            return (
+              <button key={key} onClick={() => openFolder(key)} style={{
+                width: '100%', display: 'flex', alignItems: 'center',
+                gap: 9, padding: '7px 10px', borderRadius: 5, border: 'none',
+                background: active ? '#F0F0F0' : 'none',
+                color: active ? '#111111' : '#555555',
+                fontSize: 13, fontWeight: active ? 600 : 400,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                marginBottom: 1,
+              }}
+                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = '#F7F7F7'; (e.currentTarget as HTMLElement).style.color = '#111'; } }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#555'; } }}
+              >
+                <Icon size={14} strokeWidth={active ? 2.25 : 1.75} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{label}</span>
+                {badge > 0 && (
+                  <span style={{ background: active ? '#111' : '#E5E5E5', color: active ? '#fff' : '#555', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center' }}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ height: 1, background: '#F0F0F0', margin: '10px 12px' }} />
+
         {/* Labels */}
         <div style={{ padding: '0 6px' }}>
           <button
@@ -704,15 +812,15 @@ export default function InboxPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#111111', textTransform: 'capitalize' }}>
-              {FOLDERS.find(f => f.key === folder)?.label ?? folder}
+              {folder === 'reservations' ? 'Samsara Bookings' : folder === 'gmail' ? 'Gmail Inbox' : (FOLDERS.find(f => f.key === folder)?.label ?? folder)}
             </span>
-            {unreadCount > 0 && (
-              <span style={{
-                background: '#111111', color: '#ffffff',
-                fontSize: 10, fontWeight: 700,
-                padding: '1px 6px', borderRadius: 10,
-              }}>
-                {unreadCount}
+            {(folder === 'reservations' ? bookings.filter(b => b.status === 'enquiry').length
+              : folder === 'gmail' ? gmailMsgs.filter(m => m.unread).length
+              : unreadCount) > 0 && (
+              <span style={{ background: '#111111', color: '#ffffff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10 }}>
+                {folder === 'reservations' ? bookings.filter(b => b.status === 'enquiry').length
+                  : folder === 'gmail' ? gmailMsgs.filter(m => m.unread).length
+                  : unreadCount}
               </span>
             )}
           </div>
@@ -739,12 +847,76 @@ export default function InboxPage() {
 
         {/* List */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {emails.length === 0 && (
-            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>
-              No messages
-            </p>
+
+          {/* ── Reservations list ── */}
+          {folder === 'reservations' && (loadingRes ? (
+            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>Loading…</p>
+          ) : bookings.length === 0 ? (
+            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>No web bookings yet</p>
+          ) : bookings.map(b => {
+            const isSelected = selBooking?.id === b.id;
+            const notes = parseNotes(b.internal_notes);
+            const exp = notes?.experience ?? 'Travel Enquiry';
+            const isUnread = b.status === 'enquiry';
+            return (
+              <div key={b.id} onClick={() => setSelBooking(b)} style={{ padding: '11px 14px', borderBottom: '1px solid #F0F0F0', borderLeft: isSelected ? '3px solid #111' : '3px solid transparent', background: isSelected ? '#fff' : 'transparent', cursor: 'pointer' }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#F3F3F3'; }}
+                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isUnread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#111', flexShrink: 0 }} />}
+                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#111', color: '#C9A84C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
+                      {nameInitials(b.client?.full_name ?? 'WB')}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: isUnread ? 700 : 500, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                      {b.client?.full_name ?? 'Web Booking'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 10, color: '#AAAAAA' }}>{fmtDate(b.created_at)}</span>
+                </div>
+                <p style={{ fontSize: 12, fontWeight: isUnread ? 600 : 400, color: '#333', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.reference} — {exp}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 11, color: '#AAAAAA', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{b.client?.email ?? '—'} · ${b.total_cost?.toLocaleString()}</p>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: `${statusColor(b.status)}15`, color: statusColor(b.status) }}>{statusLabel(b.status)}</span>
+                </div>
+              </div>
+            );
+          }))}
+
+          {/* ── Gmail list ── */}
+          {folder === 'gmail' && (loadingGmail ? (
+            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>Connecting to Gmail…</p>
+          ) : gmailMsgs.length === 0 ? (
+            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>No emails found</p>
+          ) : gmailMsgs.map(msg => {
+            const isSelected = selGmail?.uid === msg.uid;
+            return (
+              <div key={msg.uid} onClick={() => setSelGmail(msg)} style={{ padding: '11px 14px', borderBottom: '1px solid #F0F0F0', borderLeft: isSelected ? '3px solid #111' : '3px solid transparent', background: isSelected ? '#fff' : 'transparent', cursor: 'pointer' }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#F3F3F3'; }}
+                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {msg.unread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#111', flexShrink: 0 }} />}
+                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#555', flexShrink: 0 }}>
+                      {nameInitials(msg.from)}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: msg.unread ? 700 : 500, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{msg.from}</span>
+                  </div>
+                  <span style={{ fontSize: 10, color: '#AAAAAA' }}>{fmtDate(msg.date)}</span>
+                </div>
+                <p style={{ fontSize: 12, fontWeight: msg.unread ? 600 : 400, color: '#333', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.subject}</p>
+                <p style={{ fontSize: 11, color: '#AAAAAA', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.preview}</p>
+              </div>
+            );
+          }))}
+
+          {/* ── Standard email list ── */}
+          {folder !== 'reservations' && folder !== 'gmail' && emails.length === 0 && (
+            <p style={{ padding: 24, color: '#BBBBBB', fontSize: 13, textAlign: 'center' }}>No messages</p>
           )}
-          {emails.map(email => {
+          {folder !== 'reservations' && folder !== 'gmail' && emails.map(email => {
             const isSelected = selected?.id === email.id;
             return (
               <div
@@ -916,7 +1088,97 @@ export default function InboxPage() {
 
       {/* ── Col 3: Email detail ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: 0 }}>
-        {selected ? (
+
+        {/* ── Reservation detail ── */}
+        {folder === 'reservations' && selBooking && (() => {
+          const notes = parseNotes(selBooking.internal_notes);
+          const exp = notes?.experience ?? 'Travel Enquiry';
+          const src = notes?.source === 'experiences' ? 'Experiences Page' : notes?.source === 'feeling-engine' ? 'Feeling Engine' : 'Website';
+          const addOns: string[] = notes?.add_ons ?? [];
+          const rows = [['Reference', selBooking.reference], ['Source', src], ['Experience', exp], ...(notes?.pickup ? [['Pickup', notes.pickup]] : []), ...(addOns.length > 0 ? [['Add-ons', addOns.join(', ')]] : [])];
+          return (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 600, color: '#111', margin: 0 }}>{selBooking.reference} — {exp}</h2>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: `${statusColor(selBooking.status)}18`, color: statusColor(selBooking.status), border: `1px solid ${statusColor(selBooking.status)}28`, textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0, marginLeft: 12 }}>{statusLabel(selBooking.status)}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#111', color: '#C9A84C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{nameInitials(selBooking.client?.full_name ?? 'WB')}</div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111', margin: 0 }}>{selBooking.client?.full_name ?? 'Web Booking'}</p>
+                    <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{selBooking.client?.email ?? '—'}{selBooking.client?.phone && ` · ${selBooking.client.phone}`}</p>
+                  </div>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#BBBBBB' }}>{fmtDate(selBooking.created_at)}</span>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div style={{ background: '#FAFAFA', border: '1px solid #EBEBEB', borderRadius: 6, padding: '12px 16px' }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#AAAAAA', margin: '0 0 5px' }}>Travel Date</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#111', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={13} color="#C9A84C" />{fmtDate(selBooking.arrival_date)}</p>
+                  </div>
+                  <div style={{ background: '#FAFAFA', border: '1px solid #EBEBEB', borderRadius: 6, padding: '12px 16px' }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#AAAAAA', margin: '0 0 5px' }}>Total Value</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#111', margin: 0 }}>${selBooking.total_cost?.toLocaleString() ?? 0} USD</p>
+                  </div>
+                </div>
+                <div style={{ background: '#FAFAFA', border: '1px solid #EBEBEB', borderRadius: 6, marginBottom: 12 }}>
+                  <div style={{ padding: '9px 16px', borderBottom: '1px solid #F0F0F0' }}><p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A84C', margin: 0 }}>Booking Details</p></div>
+                  {rows.map(([k, v]) => (<div key={k} style={{ display: 'flex', padding: '8px 16px', borderBottom: '1px solid #F5F5F5' }}><span style={{ fontSize: 11, color: '#999', width: 120, flexShrink: 0 }}>{k}</span><span style={{ fontSize: 12, color: '#333' }}>{v}</span></div>))}
+                </div>
+                <a href={`/reservations/${selBooking.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', background: '#111', color: '#fff', textDecoration: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600 }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.8')}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+                >Open in Reservations <ChevronRight size={12} /></a>
+              </div>
+              <div style={{ padding: '10px 28px', borderTop: '1px solid #F0F0F0', flexShrink: 0 }}>
+                <a href={`mailto:${selBooking.client?.email ?? ''}?subject=Re: ${selBooking.reference}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F5F5F5', border: '1px solid #E5E5E5', borderRadius: 6, fontSize: 12, fontWeight: 500, color: '#333', textDecoration: 'none' }}>
+                  <Mail size={12} /> Reply via Email
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+        {folder === 'reservations' && !selBooking && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#CCCCCC' }}>
+            <Inbox size={40} strokeWidth={1} /><p style={{ marginTop: 12, fontSize: 14 }}>Select a booking to view</p>
+          </div>
+        )}
+
+        {/* ── Gmail detail ── */}
+        {folder === 'gmail' && selGmail && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#111', margin: '0 0 14px' }}>{selGmail.subject}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#555', flexShrink: 0 }}>{nameInitials(selGmail.from)}</div>
+                <div><p style={{ fontSize: 13, fontWeight: 600, color: '#111', margin: 0 }}>{selGmail.from}</p><p style={{ fontSize: 12, color: '#999', margin: 0 }}>{selGmail.fromEmail}</p></div>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: '#BBBBBB' }}>{fmtDate(selGmail.date)}</span>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+              <div style={{ background: '#FAFAFA', border: '1px solid #EBEBEB', borderRadius: 6, padding: '20px 24px', marginBottom: 12 }}>
+                <pre style={{ fontFamily: 'Arial, sans-serif', fontSize: 13, color: '#333', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {selGmail.preview || '(No preview — open in Gmail for full message)'}
+                </pre>
+              </div>
+              <p style={{ fontSize: 11, color: '#CCCCCC', margin: 0 }}>Preview only. Open Gmail to read the full message.</p>
+            </div>
+            <div style={{ padding: '10px 28px', borderTop: '1px solid #F0F0F0', flexShrink: 0, display: 'flex', gap: 8 }}>
+              <a href={`mailto:${selGmail.fromEmail}?subject=Re: ${selGmail.subject}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F5F5F5', border: '1px solid #E5E5E5', borderRadius: 6, fontSize: 12, fontWeight: 500, color: '#333', textDecoration: 'none' }}><Mail size={12} /> Reply</a>
+              <a href="https://mail.google.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F5F5F5', border: '1px solid #E5E5E5', borderRadius: 6, fontSize: 12, fontWeight: 500, color: '#333', textDecoration: 'none' }}>Open Gmail →</a>
+            </div>
+          </div>
+        )}
+        {folder === 'gmail' && !selGmail && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#CCCCCC' }}>
+            <Mail size={40} strokeWidth={1} /><p style={{ marginTop: 12, fontSize: 14 }}>Select an email to read</p>
+          </div>
+        )}
+
+        {/* ── Standard email detail ── */}
+        {folder !== 'reservations' && folder !== 'gmail' && (selected ? (
           <>
             {/* Header */}
             <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #F0F0F0' }}>
@@ -1004,7 +1266,7 @@ export default function InboxPage() {
             <Inbox size={40} strokeWidth={1} />
             <p style={{ marginTop: 12, fontSize: 14, margin: '12px 0 0' }}>Select a message to read</p>
           </div>
-        )}
+        ))}
       </div>
 
     </div>

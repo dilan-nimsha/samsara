@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockVehicles, mockDrivers } from '@/lib/mock-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Vehicle, Driver } from '@/types';
 import type { FleetVehicleType } from '@/types';
 import { toast } from '@/lib/toast';
 import {
@@ -127,16 +127,53 @@ export default function FleetPage() {
   const [dDir,         setDDir]         = useState<SortDir>('asc');
   const [refreshing,   setRefreshing]   = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [saving,       setSaving]       = useState(false);
   const [addForm, setAddForm] = useState({ type: 'van', registration: '', make: '', model: '', year: '', capacity: '', driver_name: '', license: '', phone: '' });
 
-  function handleAddFleet(e: React.FormEvent) {
+  const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
+  const [allDrivers,  setAllDrivers]  = useState<Driver[]>([]);
+  const [loading,     setLoading]     = useState(true);
+
+  const fetchFleet = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/fleet');
+      const data = await res.json() as { success: boolean; vehicles?: Vehicle[]; drivers?: Driver[]; error?: string };
+      if (data.success) { setAllVehicles(data.vehicles ?? []); setAllDrivers(data.drivers ?? []); }
+      else toast.error(data.error ?? 'Failed to load fleet');
+    } catch {
+      toast.error('Failed to load fleet');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchFleet(); }, [fetchFleet]);
+
+  async function handleAddFleet(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const isVehicle = tab === 'vehicles';
     const nameField = isVehicle ? addForm.registration : addForm.driver_name;
     if (!nameField.trim()) { toast.error(isVehicle ? 'Registration is required' : 'Driver name is required'); return; }
-    setShowAddModal(false);
-    setAddForm({ type: 'van', registration: '', make: '', model: '', year: '', capacity: '', driver_name: '', license: '', phone: '' });
-    toast.success(isVehicle ? `Vehicle ${addForm.registration} added` : `Driver "${addForm.driver_name}" added`);
+    setSaving(true);
+    try {
+      const res = await fetch('/api/fleet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...addForm, kind: isVehicle ? 'vehicle' : 'driver' }),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to add');
+      toast.success(isVehicle ? `Vehicle ${addForm.registration} added` : `Driver "${addForm.driver_name}" added`);
+      setShowAddModal(false);
+      setAddForm({ type: 'van', registration: '', make: '', model: '', year: '', capacity: '', driver_name: '', license: '', phone: '' });
+      await fetchFleet();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleVSort(f: VehicleSort) {
@@ -149,34 +186,34 @@ export default function FleetPage() {
   }
 
   const vehicles = useMemo(() => {
-    let list = [...mockVehicles];
+    let list = [...allVehicles];
     if (vFilter.trim()) {
       const q = vFilter.toLowerCase();
       list = list.filter(v =>
-        v.registration.toLowerCase().includes(q) ||
-        v.make.toLowerCase().includes(q) ||
-        v.model.toLowerCase().includes(q) ||
-        v.type.toLowerCase().includes(q)
+        (v.registration ?? '').toLowerCase().includes(q) ||
+        (v.make ?? '').toLowerCase().includes(q) ||
+        (v.model ?? '').toLowerCase().includes(q) ||
+        (v.type ?? '').toLowerCase().includes(q)
       );
     }
     list.sort((a, b) => {
       if (vSort === 'type')         return vDir === 'asc' ? a.type.localeCompare(b.type)                 : b.type.localeCompare(a.type);
       if (vSort === 'registration') return vDir === 'asc' ? a.registration.localeCompare(b.registration) : b.registration.localeCompare(a.registration);
-      const av = vSort === 'capacity' ? a.capacity_adults : vSort === 'year' ? a.year : new Date(a.insurance_expiry).getTime();
-      const bv = vSort === 'capacity' ? b.capacity_adults : vSort === 'year' ? b.year : new Date(b.insurance_expiry).getTime();
+      const av = vSort === 'capacity' ? a.capacity_adults : vSort === 'year' ? a.year : new Date(a.insurance_expiry).getTime() || 0;
+      const bv = vSort === 'capacity' ? b.capacity_adults : vSort === 'year' ? b.year : new Date(b.insurance_expiry).getTime() || 0;
       return vDir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [vFilter, vSort, vDir]);
+  }, [allVehicles, vFilter, vSort, vDir]);
 
   const drivers = useMemo(() => {
-    let list = [...mockDrivers];
+    let list = [...allDrivers];
     if (dFilter.trim()) {
       const q = dFilter.toLowerCase();
       list = list.filter(d =>
-        d.full_name.toLowerCase().includes(q) ||
-        d.license_number.toLowerCase().includes(q) ||
-        d.languages.some(l => l.toLowerCase().includes(q))
+        (d.full_name ?? '').toLowerCase().includes(q) ||
+        (d.license_number ?? '').toLowerCase().includes(q) ||
+        (d.languages ?? []).some(l => l.toLowerCase().includes(q))
       );
     }
     list.sort((a, b) => {
@@ -186,17 +223,17 @@ export default function FleetPage() {
       return dDir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [dFilter, dSort, dDir]);
+  }, [allDrivers, dFilter, dSort, dDir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchFleet();
   }
 
   const TAB_DATA = [
-    { key: 'vehicles' as TabKey, label: 'Vehicles', count: mockVehicles.length },
-    { key: 'drivers'  as TabKey, label: 'Drivers',  count: mockDrivers.length  },
+    { key: 'vehicles' as TabKey, label: 'Vehicles', count: allVehicles.length },
+    { key: 'drivers'  as TabKey, label: 'Drivers',  count: allDrivers.length  },
   ];
 
   return (
@@ -411,10 +448,10 @@ export default function FleetPage() {
               padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-                {vehicles.length} of {mockVehicles.length} vehicles
+                {vehicles.length} of {allVehicles.length} vehicles
               </span>
               <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-                {mockVehicles.filter(v => v.is_available).length} available · {mockVehicles.filter(v => v.owner === 'own_fleet').length} own fleet
+                {allVehicles.filter(v => v.is_available).length} available · {allVehicles.filter(v => v.owner === 'own_fleet').length} own fleet
               </span>
             </div>
           )}
@@ -458,7 +495,7 @@ export default function FleetPage() {
                 </tr>
               )}
               {drivers.map((d, i) => {
-                const vehicle  = d.vehicle_id ? mockVehicles.find(v => v.id === d.vehicle_id) : null;
+                const vehicle  = d.vehicle_id ? allVehicles.find(v => v.id === d.vehicle_id) : null;
                 const licBadge = licenceBadge(d.license_expiry);
                 return (
                   <tr
@@ -550,10 +587,10 @@ export default function FleetPage() {
               padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-                {drivers.length} of {mockDrivers.length} drivers
+                {drivers.length} of {allDrivers.length} drivers
               </span>
               <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-                {mockDrivers.filter(d => d.is_available).length} available · avg ${ (mockDrivers.reduce((s, d) => s + d.daily_rate, 0) / mockDrivers.length).toFixed(0) }/day
+                {allDrivers.filter(d => d.is_available).length} available · avg ${ allDrivers.length ? (allDrivers.reduce((s, d) => s + d.daily_rate, 0) / allDrivers.length).toFixed(0) : '0' }/day
               </span>
             </div>
           )}
@@ -592,7 +629,7 @@ export default function FleetPage() {
                 ].map(({ label, key, placeholder }) => (
                   <div key={key} style={{ marginBottom: 14 }}>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-                    <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                    <input value={addForm[key as keyof typeof addForm]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
                       style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                       onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')} onBlur={e => (e.currentTarget.style.borderColor = '#E0E0E0')} />
                   </div>
@@ -614,7 +651,7 @@ export default function FleetPage() {
                 ].map(({ label, key, placeholder }) => (
                   <div key={key} style={{ marginBottom: 14 }}>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-                    <input value={(addForm as any)[key]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                    <input value={addForm[key as keyof typeof addForm]} onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
                       style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                       onFocus={e => (e.currentTarget.style.borderColor = '#1A6FC4')} onBlur={e => (e.currentTarget.style.borderColor = '#E0E0E0')} />
                   </div>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockReservations, mockSuppliers, mockClients } from '@/lib/mock-data';
+import { useState, useMemo, useEffect } from 'react';
+import type { Reservation, Supplier } from '@/types';
 import { TrendingUp, TrendingDown, Minus, BarChart3, Users, Globe, Truck } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,15 +94,15 @@ const CANCELLATION_REASONS = [
 
 // ── Computed from mock data ───────────────────────────────────────────────────
 
-function computeKPIs() {
-  const totalRevenue  = mockReservations.reduce((s, r) => s + r.total_cost,  0);
-  const totalPaid     = mockReservations.reduce((s, r) => s + r.total_paid,  0);
-  const totalComm     = mockReservations.reduce((s, r) => s + r.commission_amount, 0);
-  const totalBookings = mockReservations.length;
-  const avgValue      = totalRevenue / totalBookings || 0;
-  const activeTrips   = mockReservations.filter(r => r.status === 'trip_active').length;
-  const confirmed     = mockReservations.filter(r => ['confirmed','invoice_sent','paid','trip_active','completed'].includes(r.status)).length;
-  const conversionPct = Math.round((confirmed / totalBookings) * 100);
+function computeKPIs(reservations: Reservation[]) {
+  const totalRevenue  = reservations.reduce((s, r) => s + (r.total_cost ?? 0),  0);
+  const totalPaid     = reservations.reduce((s, r) => s + (r.total_paid ?? 0),  0);
+  const totalComm     = reservations.reduce((s, r) => s + (r.commission_amount ?? 0), 0);
+  const totalBookings = reservations.length;
+  const avgValue      = totalBookings ? totalRevenue / totalBookings : 0;
+  const activeTrips   = reservations.filter(r => r.status === 'trip_active').length;
+  const confirmed     = reservations.filter(r => ['confirmed','invoice_sent','paid','trip_active','completed'].includes(r.status)).length;
+  const conversionPct = totalBookings ? Math.round((confirmed / totalBookings) * 100) : 0;
   return { totalRevenue, totalPaid, totalComm, totalBookings, avgValue, activeTrips, conversionPct };
 }
 
@@ -296,7 +296,24 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState<Tab>('overview');
-  const kpi = useMemo(computeKPIs, []);
+
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [suppliers,    setSuppliers]    = useState<Supplier[]>([]);
+  const [clientsCount, setClientsCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/reservations').then(r => r.json())
+      .then((d: { success: boolean; reservations?: Reservation[] }) => { if (d.success) setReservations(d.reservations ?? []); })
+      .catch(() => {});
+    fetch('/api/suppliers').then(r => r.json())
+      .then((d: { success: boolean; suppliers?: Supplier[] }) => { if (d.success) setSuppliers(d.suppliers ?? []); })
+      .catch(() => {});
+    fetch('/api/clients').then(r => r.json())
+      .then((d: { success: boolean; clients?: unknown[] }) => { if (d.success) setClientsCount((d.clients ?? []).length); })
+      .catch(() => {});
+  }, []);
+
+  const kpi = useMemo(() => computeKPIs(reservations), [reservations]);
   const totalBookings = MONTHLY.reduce((s, m) => s + m.bookings, 0);
   const totalRevenue  = MONTHLY.reduce((s, m) => s + m.revenue, 0);
   const totalPaid     = MONTHLY.reduce((s, m) => s + m.paid, 0);
@@ -534,7 +551,7 @@ export default function AnalyticsPage() {
 
             {/* Client KPIs */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <KpiCard label="Total Clients"      value={String(mockClients.length + 147)} sub="+22 new this quarter" trend="up" color="#1A6FC4" icon={<Users size={14} />} />
+              <KpiCard label="Total Clients"      value={String(clientsCount)} sub="+22 new this quarter" trend="up" color="#1A6FC4" icon={<Users size={14} />} />
               <KpiCard label="Repeat Clients"      value="34%"   sub="Booked 2+ trips" trend="up" color="#065F46" />
               <KpiCard label="VIP Clients"         value="18"    sub="Active VIP accounts" color="#C9A84C" />
               <KpiCard label="Avg Lifetime Value"  value="£6,840" sub="Per client, all trips" trend="up" color="#7C3AED" />
@@ -718,7 +735,7 @@ export default function AnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockSuppliers.slice(0, 10).map(s => {
+                  {suppliers.slice(0, 10).map(s => {
                     const TYPE_COLORS: Record<string, { color: string; bg: string }> = {
                       hotel:      { color: '#1D4ED8', bg: '#DBEAFE' },
                       transport:  { color: '#6D28D9', bg: '#EDE9FE' },

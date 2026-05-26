@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockGuides, mockGuideAssignments } from '@/lib/mock-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Guide } from '@/types';
+// Guide assignments have no DB table yet (planned) — calendar overlay stays mock.
+import { mockGuideAssignments } from '@/lib/mock-data';
 import { toast } from '@/lib/toast';
 import {
   RefreshCw, Plus, SlidersHorizontal,
@@ -132,15 +134,52 @@ export default function GuidesPage() {
   const [calYear,    setCalYear]    = useState(2026);
   const [calMonth,   setCalMonth]   = useState(4);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '' });
+  const [saving,       setSaving]       = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '', phone: '' });
 
-  function handleAddGuide(e: React.FormEvent) {
+  const [allGuides, setAllGuides] = useState<Guide[]>([]);
+  const [loading,   setLoading]   = useState(true);
+
+  const fetchGuides = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/guides');
+      const data = await res.json() as { success: boolean; guides?: Guide[]; error?: string };
+      if (data.success) setAllGuides(data.guides ?? []);
+      else toast.error(data.error ?? 'Failed to load guides');
+    } catch {
+      toast.error('Failed to load guides');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchGuides(); }, [fetchGuides]);
+
+  async function handleAddGuide(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!addForm.full_name.trim()) { toast.error('Guide name is required'); return; }
     if (!addForm.base_location.trim()) { toast.error('Base location is required'); return; }
-    setShowAddModal(false);
-    setAddForm({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '' });
-    toast.success(`Guide "${addForm.full_name}" added successfully`);
+    setSaving(true);
+    try {
+      const res = await fetch('/api/guides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...addForm, phone: addForm.phone || '—' }),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to add guide');
+      const name = addForm.full_name;
+      setShowAddModal(false);
+      setAddForm({ full_name: '', base_location: '', languages: '', specializations: '', daily_rate: '', phone: '' });
+      toast.success(`Guide "${name}" added successfully`);
+      await fetchGuides();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add guide');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleSort(f: SortField) {
@@ -149,38 +188,38 @@ export default function GuidesPage() {
   }
 
   const tabCounts = useMemo<Record<TabKey, number>>(() => ({
-    all:       mockGuides.length,
-    available: mockGuides.filter(g => g.is_available).length,
-    on_leave:  mockGuides.filter(g => !g.is_available).length,
-  }), []);
+    all:       allGuides.length,
+    available: allGuides.filter(g => g.is_available).length,
+    on_leave:  allGuides.filter(g => !g.is_available).length,
+  }), [allGuides]);
 
   const rows = useMemo(() => {
-    let list = [...mockGuides];
+    let list = [...allGuides];
     if (tab === 'available') list = list.filter(g => g.is_available);
     if (tab === 'on_leave')  list = list.filter(g => !g.is_available);
     if (filter.trim()) {
       const q = filter.toLowerCase();
       list = list.filter(g =>
-        g.full_name.toLowerCase().includes(q) ||
-        g.base_location.toLowerCase().includes(q) ||
-        g.languages.some(l => l.toLowerCase().includes(q)) ||
-        g.specializations.some(s => s.toLowerCase().includes(q))
+        (g.full_name ?? '').toLowerCase().includes(q) ||
+        (g.base_location ?? '').toLowerCase().includes(q) ||
+        (g.languages ?? []).some(l => l.toLowerCase().includes(q)) ||
+        (g.specializations ?? []).some(s => s.toLowerCase().includes(q))
       );
     }
     list.sort((a, b) => {
-      if (sort === 'name')     return dir === 'asc' ? a.full_name.localeCompare(b.full_name)         : b.full_name.localeCompare(a.full_name);
-      if (sort === 'location') return dir === 'asc' ? a.base_location.localeCompare(b.base_location) : b.base_location.localeCompare(a.base_location);
+      if (sort === 'name')     return dir === 'asc' ? a.full_name.localeCompare(b.full_name)                   : b.full_name.localeCompare(a.full_name);
+      if (sort === 'location') return dir === 'asc' ? (a.base_location ?? '').localeCompare(b.base_location ?? '') : (b.base_location ?? '').localeCompare(a.base_location ?? '');
       const av = sort === 'rate' ? a.daily_rate : a.rating;
       const bv = sort === 'rate' ? b.daily_rate : b.rating;
       return dir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [tab, filter, sort, dir]);
+  }, [allGuides, tab, filter, sort, dir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchGuides();
   }
 
   // ── Calendar helpers ───────────────────────────────────────────────────────
@@ -208,7 +247,7 @@ export default function GuidesPage() {
     else setCalMonth(m => m + 1);
   }
 
-  const calGuides = mockGuides; // show all guides in calendar (no tab filter)
+  const calGuides = allGuides; // show all guides in calendar (no tab filter)
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -434,7 +473,7 @@ export default function GuidesPage() {
                 padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-                  {rows.length} of {mockGuides.length} guides
+                  {rows.length} of {allGuides.length} guides
                 </span>
                 <span style={{ fontSize: 11, color: '#AAAAAA' }}>
                   {rows.filter(g => g.is_available).length} available · {rows.filter(g => !g.is_available).length} on leave
@@ -663,7 +702,7 @@ export default function GuidesPage() {
               <div key={key} style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
                 <input
-                  value={(addForm as any)[key]}
+                  value={addForm[key as keyof typeof addForm]}
                   onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
                   placeholder={placeholder}
                   style={{ width: '100%', height: 36, padding: '0 10px', border: '1px solid #E0E0E0', borderRadius: 6, fontSize: 13, color: '#111', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}

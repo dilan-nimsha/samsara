@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { mockReservations } from '@/lib/mock-data';
+import type { Reservation } from '@/types';
 import { formatCurrency, formatDate, STATUS_CONFIG, PAYMENT_CONFIG, tripDuration } from '@/lib/utils';
 import type { ReservationStatus } from '@/types';
 import {
@@ -11,7 +11,7 @@ import {
   ChevronLeft, ChevronRight, Calendar, X, MapPin, ChevronDown,
   Settings, Trash2, Check, Lock,
 } from 'lucide-react';
-import { getCurrentUser } from '@/lib/session';
+import { useCurrentUser } from '@/lib/session';
 
 const DEFAULT_STATIONS = ['Sri Lanka', 'Maldives', 'India'];
 const LS_KEY = 'samsara_stations';
@@ -76,8 +76,8 @@ type SortDir   = 'asc' | 'desc';
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ReservationsPage() {
-  const currentUser = getCurrentUser();
-  const isAdmin     = currentUser.role === 'admin';
+  const { user: currentUser } = useCurrentUser();
+  const isAdmin     = currentUser?.role === 'admin';
 
   const [tab,         setTab]         = useState<TabKey>('all');
   const [filter,      setFilter]      = useState('');
@@ -86,22 +86,65 @@ export default function ReservationsPage() {
   const [pendingOnly, setPendingOnly] = useState(false);
   const [bookingDate, setBookingDate] = useState<Date>(() => startOfDay(new Date()));
   // Non-admin users are locked to their assigned station
-  const [location,    setLocation]    = useState(() => currentUser.station ?? 'All Stations');
+  const [location,    setLocation]    = useState('All Stations');
   const [locOpen,     setLocOpen]     = useState(false);
   const [managing,    setManaging]    = useState(false);
   const [stations,    setStations]    = useState<string[]>(loadStations);
   const [newStation,  setNewStation]  = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing,  setRefreshing]  = useState(false);
+
+  // ── Live reservations from Supabase ───────────────────────────────
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [dbError,      setDbError]      = useState<string | null>(null);
+
+  const fetchReservations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reservations');
+      // The auth gate returns 401 JSON (never an HTML login redirect), so the
+      // response below always stays parseable as JSON.
+      if (res.status === 401) {
+        setDbError('Your session has expired. Please sign in again.');
+        return;
+      }
+      if (!res.ok) {
+        setDbError(`Reservations API error (HTTP ${res.status}). Check /api/health for details.`);
+        return;
+      }
+      const data = await res.json() as { success: boolean; reservations?: Reservation[]; error?: string };
+      if (data.success && data.reservations) {
+        setReservations(data.reservations);
+        setDbError(null);
+      } else if (!data.success) {
+        setDbError(data.error ? `Database error: ${data.error}` : 'Database unavailable. Check /api/health for details.');
+      }
+    } catch (err) {
+      setDbError(`Could not reach reservations API: ${String(err)}`);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchReservations(); }, [fetchReservations]);
+
+  // Re-fetch every 30 s so new bookings appear without manual refresh
+  useEffect(() => {
+    const id = setInterval(fetchReservations, 30_000);
+    return () => clearInterval(id);
+  }, [fetchReservations]);
+
+  const allReservations = reservations;
+
   const printRef      = useRef<HTMLDivElement>(null);
   const locRef        = useRef<HTMLDivElement>(null);
   const newStationRef = useRef<HTMLInputElement>(null);
 
-
-  // Refresh — simulates data reload with spinner
+  // Refresh — reloads live data + spinner
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 900);
+    void fetchReservations();
   }
 
   // Export — builds CSV from current filtered rows and triggers download
@@ -243,24 +286,25 @@ export default function ReservationsPage() {
   }
 
   const tabCount = (key: TabKey) => {
-    if (key === 'all')      return mockReservations.length;
-    if (key === 'overdue')  return mockReservations.filter(r => r.payment_status === 'overdue').length;
-    if (key === 'bookings') return mockReservations.filter(r => BOOKING_STATUSES.includes(r.status)).length;
-    return mockReservations.filter(r => r.status === key).length;
+    if (key === 'all')      return allReservations.length;
+    if (key === 'overdue')  return allReservations.filter(r => r.payment_status === 'overdue').length;
+    if (key === 'bookings') return allReservations.filter(r => BOOKING_STATUSES.includes(r.status)).length;
+    return allReservations.filter(r => r.status === key).length;
   };
 
   const rows = useMemo(() => {
-    let list = [...mockReservations];
+    let list = [...allReservations];
 
     // Tab filter
     if (tab === 'overdue')       list = list.filter(r => r.payment_status === 'overdue');
     else if (tab === 'bookings') list = list.filter(r => BOOKING_STATUSES.includes(r.status));
     else if (tab !== 'all')      list = list.filter(r => r.status === tab);
 
-    // Date filter — not applied on All Bookings (shows everything)
-    if (tab !== 'bookings') {
+    // Date filter — skipped when a search query is active (searching by ref/name should find any date),
+    // not applied on All Bookings or Enquiries, and web bookings always bypass it.
+    if (!filter.trim() && tab !== 'bookings' && tab !== 'enquiry') {
       const ymd = toYMD(bookingDate);
-      list = list.filter(r => r.arrival_date === ymd);
+      list = list.filter(r => r.assigned_staff === 'Web Booking' || r.arrival_date === ymd);
     }
 
     // Pending only
@@ -269,7 +313,7 @@ export default function ReservationsPage() {
     );
 
     // Location filter — staff are always restricted to their assigned station
-    const effectiveStation = !isAdmin && currentUser.station ? currentUser.station : location;
+    const effectiveStation = !isAdmin && currentUser?.station ? currentUser.station : location;
     if (effectiveStation !== 'All Stations') {
       list = list.filter(r => r.destinations.some(d => d === effectiveStation));
     }
@@ -300,7 +344,7 @@ export default function ReservationsPage() {
     });
 
     return list;
-  }, [tab, filter, pendingOnly, sort, dir, bookingDate, location, stations, isAdmin, currentUser.station]);
+  }, [tab, filter, pendingOnly, sort, dir, bookingDate, location, stations, isAdmin, currentUser?.station, allReservations]);
 
   return (
     <div style={{ height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', background: '#F7F7F7' }}>
@@ -336,7 +380,7 @@ export default function ReservationsPage() {
         <div ref={locRef} style={{ position: 'relative' }}>
           <button
             onClick={() => isAdmin && setLocOpen(o => !o)}
-            title={!isAdmin ? `Restricted to ${currentUser.station}` : undefined}
+            title={!isAdmin ? `Restricted to ${currentUser?.station ?? 'your station'}` : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '4px 8px', borderRadius: 4,
@@ -567,13 +611,21 @@ export default function ReservationsPage() {
           <input
             value={filter}
             onChange={e => setFilter(e.target.value)}
-            placeholder="Filter..."
+            placeholder="Search ref, name, destination…"
             style={{
               background: 'none', border: 'none', outline: 'none',
-              fontSize: 12, color: '#333333', width: 160,
+              fontSize: 12, color: '#333333', width: 210,
               fontFamily: 'inherit',
             }}
           />
+          {filter && (
+            <button
+              onClick={() => setFilter('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+            >
+              <X size={11} color="#AAAAAA" strokeWidth={2} />
+            </button>
+          )}
         </div>
 
         {/* New Reservation */}
@@ -651,6 +703,26 @@ export default function ReservationsPage() {
         })}
       </div>
 
+      {/* ── DB error banner ── */}
+      {dbError && (
+        <div style={{
+          background: '#FEF3C7', borderBottom: '1px solid #F59E0B',
+          padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 12, color: '#92400E', flexShrink: 0,
+        }}>
+          <span style={{ fontWeight: 700 }}>⚠ Database issue:</span>
+          {dbError}
+          <a
+            href="/api/health"
+            target="_blank"
+            rel="noreferrer"
+            style={{ marginLeft: 'auto', color: '#92400E', fontWeight: 600, textDecoration: 'underline', whiteSpace: 'nowrap' }}
+          >
+            Run diagnostics →
+          </a>
+        </div>
+      )}
+
       {/* ── Table ── */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
         <table style={{
@@ -698,7 +770,7 @@ export default function ReservationsPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={14} style={{ padding: '48px', textAlign: 'center', color: '#BBBBBB', fontSize: 13 }}>
-                  No reservations match your filters.
+                  {loading ? 'Loading reservations…' : allReservations.length === 0 ? 'No reservations yet.' : 'No reservations match your filters.'}
                 </td>
               </tr>
             )}
@@ -804,7 +876,7 @@ export default function ReservationsPage() {
         flexShrink: 0,
       }}>
         <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-          {rows.length} of {mockReservations.length} reservations
+          {rows.length} of {allReservations.length} reservations
         </span>
         <span style={{ fontSize: 11, color: '#AAAAAA' }}>
           Samsara RMS · {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}

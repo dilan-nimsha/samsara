@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=3072 next dev -p 3001",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\" --names \"website,backend\"",
     "dev:backend": "echo 'Backend system placeholder - configure as needed'",
     "build": "next build",
@@ -12,7 +12,9 @@
     "start": "next start",
     "start:all": "concurrently \"npm start\" \"npm run start:backend\" --names \"website,backend\"",
     "start:backend": "echo 'Backend start placeholder'",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:users": "node --env-file=.env.local scripts/seed-users.mjs",
+    "seed:fleet": "node --env-file=.env.local scripts/seed-fleet.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -20,11 +22,14 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.1",
+    "@types/nodemailer": "^8.0.0",
     "date-fns": "^4.1.0",
+    "imapflow": "^1.3.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.7.0",
     "next": "16.2.2",
+    "nodemailer": "^8.0.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.10.0"
@@ -35,6 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.1.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",

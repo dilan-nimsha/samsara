@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockClients } from '@/lib/mock-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Client } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import {
@@ -93,15 +93,52 @@ export default function ClientsPage() {
   const [dir,           setDir]           = useState<SortDir>('asc');
   const [refreshing,    setRefreshing]    = useState(false);
   const [showAddModal,  setShowAddModal]  = useState(false);
+  const [saving,        setSaving]        = useState(false);
   const [addForm,       setAddForm]       = useState({ full_name: '', email: '', phone: '', nationality: '', company_name: '' });
 
-  function handleAddClient() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchClients = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/clients');
+      const data = await res.json() as { success: boolean; clients?: Client[]; error?: string };
+      if (data.success) setClients(data.clients ?? []);
+      else toast.error(data.error ?? 'Failed to load clients');
+    } catch {
+      toast.error('Failed to load clients');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchClients(); }, [fetchClients]);
+
+  async function handleAddClient() {
     if (!addForm.full_name.trim()) { toast.error('Full name is required'); return; }
     if (!addForm.email.trim())     { toast.error('Email is required'); return; }
     if (!addForm.nationality.trim()) { toast.error('Nationality is required'); return; }
-    setShowAddModal(false);
-    setAddForm({ full_name: '', email: '', phone: '', nationality: '', company_name: '' });
-    toast.success(`Client "${addForm.full_name}" added successfully`);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to add client');
+      const name = addForm.full_name;
+      setShowAddModal(false);
+      setAddForm({ full_name: '', email: '', phone: '', nationality: '', company_name: '' });
+      toast.success(`Client "${name}" added successfully`);
+      await fetchClients();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add client');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleSort(f: SortField) {
@@ -110,14 +147,14 @@ export default function ClientsPage() {
   }
 
   const tabCounts = useMemo<Record<TabKey, number>>(() => ({
-    all:       mockClients.length,
-    vip:       mockClients.filter(c => c.is_vip).length,
-    repeat:    mockClients.filter(c => c.is_repeat_client).length,
-    corporate: mockClients.filter(c => !!c.company_name).length,
-  }), []);
+    all:       clients.length,
+    vip:       clients.filter(c => c.is_vip).length,
+    repeat:    clients.filter(c => c.is_repeat_client).length,
+    corporate: clients.filter(c => !!c.company_name).length,
+  }), [clients]);
 
   const rows = useMemo(() => {
-    let list = [...mockClients];
+    let list = [...clients];
     if (tab === 'vip')       list = list.filter(c => c.is_vip);
     if (tab === 'repeat')    list = list.filter(c => c.is_repeat_client);
     if (tab === 'corporate') list = list.filter(c => !!c.company_name);
@@ -140,12 +177,12 @@ export default function ClientsPage() {
       return 0;
     });
     return list;
-  }, [tab, filter, sort, dir]);
+  }, [clients, tab, filter, sort, dir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchClients();
   }
 
   return (
@@ -271,7 +308,7 @@ export default function ClientsPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#AAAAAA', fontSize: 13 }}>
-                  No clients match your filters.
+                  {loading ? 'Loading clients…' : clients.length === 0 ? 'No clients yet. Click "Add Client" to create one.' : 'No clients match your filters.'}
                 </td>
               </tr>
             )}
@@ -347,7 +384,7 @@ export default function ClientsPage() {
             padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-              {rows.length} of {mockClients.length} clients
+              {rows.length} of {clients.length} clients
             </span>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
               {rows.filter(c => c.is_vip).length} VIP · {rows.filter(c => c.is_repeat_client).length} repeat
@@ -380,7 +417,7 @@ export default function ClientsPage() {
                 <div key={key}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
                   <input
-                    value={(addForm as any)[key]}
+                    value={addForm[key as keyof typeof addForm]}
                     onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
                     style={{
@@ -396,8 +433,8 @@ export default function ClientsPage() {
               <button onClick={() => setShowAddModal(false)} style={{ padding: '7px 16px', border: '1px solid #E0E0E0', borderRadius: 5, background: 'none', fontSize: 12, fontWeight: 500, color: '#555555', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button onClick={handleAddClient} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Add Client
+              <button onClick={handleAddClient} disabled={saving} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: saving ? '#888888' : '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                {saving ? 'Saving…' : 'Add Client'}
               </button>
             </div>
           </div>

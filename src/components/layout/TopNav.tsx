@@ -1,18 +1,56 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { getCurrentUser, type StaffUser } from '@/lib/session';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCurrentUser } from '@/lib/session';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Search, Bell, LogOut, Settings, X, Mail,
   ChevronDown, CalendarDays, UserPlus, Users, Handshake,
   UserCheck, Truck, Package, CreditCard, BarChart3,
-  Plus, FileDown, FileUp,
+  Plus, FileDown, FileUp, Clock, ArrowRight,
   Tag, CalendarRange, Building2, Percent, FileX, ListChecks, Calculator,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
+import type { ReservationStatus } from '@/types';
+
+// ── Search types ───────────────────────────────────────────────────────────────
+
+interface SearchResult {
+  id: string;
+  reference: string;
+  clientName: string;
+  destinations: string[];
+  status: ReservationStatus;
+  arrivalDate: string;
+}
+
+const RECENT_KEY = 'samsara_recent_searches';
+const MAX_RECENT  = 6;
+
+function loadRecent(): string[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); } catch { return []; }
+}
+function saveRecent(term: string) {
+  const prev = loadRecent().filter(t => t !== term);
+  localStorage.setItem(RECENT_KEY, JSON.stringify([term, ...prev].slice(0, MAX_RECENT)));
+}
+function clearRecent() {
+  localStorage.removeItem(RECENT_KEY);
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  enquiry: 'Enquiry', under_review: 'Under Review', confirmed: 'Confirmed',
+  invoice_sent: 'Invoiced', paid: 'Paid', trip_active: 'Active',
+  completed: 'Completed', cancelled: 'Cancelled', feedback_pending: 'Feedback',
+};
+const STATUS_COLOR: Record<string, string> = {
+  enquiry: '#6B7280', under_review: '#D97706', confirmed: '#2563EB',
+  invoice_sent: '#7C3AED', paid: '#059669', trip_active: '#0891B2',
+  completed: '#374151', cancelled: '#DC2626', feedback_pending: '#9333EA',
+};
 
 // ── Menu structure ─────────────────────────────────────────────────────────────
 
@@ -104,13 +142,57 @@ export default function TopNav() {
   const router    = useRouter();
   const navRef    = useRef<HTMLElement>(null);
 
-  const [search,      setSearch]      = useState('');
-  const [openMenu,    setOpenMenu]    = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<StaffUser | null>(null);
+  const [search,        setSearch]        = useState('');
+  const [openMenu,      setOpenMenu]      = useState<string | null>(null);
+  const { user: currentUser } = useCurrentUser();
 
-  useEffect(() => { setCurrentUser(getCurrentUser()); }, []);
+  // ── Search state ──────────────────────────────────────────────────
+  const [allResults,    setAllResults]    = useState<SearchResult[]>([]);
+  const [searchOpen,    setSearchOpen]    = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [resultsLoaded, setResultsLoaded] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click
+  // Fetch all reservations once for client-side search
+  const loadAllReservations = useCallback(async () => {
+    if (resultsLoaded) return;
+    try {
+      const res  = await fetch('/api/reservations');
+      const data = await res.json() as {
+        success: boolean;
+        reservations?: Array<{
+          id: string; reference: string; status: string;
+          arrival_date: string; destinations: string[];
+          client?: { full_name?: string };
+        }>;
+      };
+      if (data.success && data.reservations) {
+        setAllResults(data.reservations.map(r => ({
+          id:           r.id,
+          reference:    r.reference,
+          clientName:   r.client?.full_name ?? '—',
+          destinations: r.destinations ?? [],
+          status:       r.status as ReservationStatus,
+          arrivalDate:  r.arrival_date,
+        })));
+        setResultsLoaded(true);
+      }
+    } catch { /* silent */ }
+  }, [resultsLoaded]);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Close nav menu on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (openMenu && navRef.current && !navRef.current.contains(e.target as Node)) {
@@ -121,8 +203,46 @@ export default function TopNav() {
     return () => document.removeEventListener('mousedown', handler);
   }, [openMenu]);
 
-  // Close dropdown on route change
-  useEffect(() => { setOpenMenu(null); }, [pathname]);
+  // Close both on route change
+  useEffect(() => { setOpenMenu(null); setSearchOpen(false); setSearch(''); }, [pathname]);
+
+  // Filtered results based on query
+  const q = search.toLowerCase().trim();
+  const matchedResults = q.length >= 1
+    ? allResults.filter(r =>
+        r.reference.toLowerCase().includes(q) ||
+        r.clientName.toLowerCase().includes(q) ||
+        r.destinations.some(d => d.toLowerCase().includes(q))
+      ).slice(0, 8)
+    : [];
+
+  function openSearch() {
+    setSearchOpen(true);
+    setRecentSearches(loadRecent());
+    loadAllReservations();
+  }
+
+  function handleResultClick(result: SearchResult) {
+    saveRecent(result.reference);
+    setSearch('');
+    setSearchOpen(false);
+    router.push(`/reservations/${result.id}`);
+  }
+
+  function handleRecentClick(term: string) {
+    setSearch(term);
+    inputRef.current?.focus();
+  }
+
+  function handleClearRecent() {
+    clearRecent();
+    setRecentSearches([]);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setSearchOpen(false); setSearch(''); }
+    if (e.key === 'Enter' && matchedResults.length > 0) handleResultClick(matchedResults[0]);
+  }
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -277,28 +397,163 @@ export default function TopNav() {
       {/* Right side */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
 
-        {/* Search */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'rgba(255,255,255,0.07)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          borderRadius: 4, padding: '4px 10px',
-          width: 240,
-        }}>
-          <Search size={12} color="rgba(255,255,255,0.30)" strokeWidth={2} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search reservations, clients…"
-            style={{
-              background: 'none', border: 'none', outline: 'none',
-              color: '#ffffff', fontSize: 12, width: '100%', fontFamily: 'inherit',
-            }}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', padding: 0, display: 'flex', cursor: 'pointer' }}>
-              <X size={11} color="rgba(255,255,255,0.35)" />
-            </button>
+        {/* Global Search */}
+        <div ref={searchRef} style={{ position: 'relative' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: searchOpen ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.07)',
+            border: searchOpen ? '1px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.09)',
+            borderRadius: 4, padding: '4px 10px',
+            width: 240, transition: 'background 0.12s, border-color 0.12s',
+          }}>
+            <Search size={12} color={searchOpen ? '#C9A84C' : 'rgba(255,255,255,0.30)'} strokeWidth={2} />
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={e => { setSearch(e.target.value); if (!searchOpen) openSearch(); }}
+              onFocus={openSearch}
+              onKeyDown={handleKeyDown}
+              placeholder="Search ref, name, destination…"
+              style={{
+                background: 'none', border: 'none', outline: 'none',
+                color: '#ffffff', fontSize: 12, width: '100%', fontFamily: 'inherit',
+              }}
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); inputRef.current?.focus(); }} style={{ background: 'none', border: 'none', padding: 0, display: 'flex', cursor: 'pointer' }}>
+                <X size={11} color="rgba(255,255,255,0.35)" />
+              </button>
+            )}
+          </div>
+
+          {/* Dropdown */}
+          {searchOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)',
+              left: '50%', transform: 'translateX(-50%)',
+              width: 360, background: '#1C1C1C',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 6, boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+              zIndex: 300, overflow: 'hidden',
+            }}>
+
+              {/* Results */}
+              {q.length >= 1 && (
+                <>
+                  {matchedResults.length === 0 ? (
+                    <div style={{ padding: '20px 16px', textAlign: 'center' }}>
+                      <Search size={18} color="rgba(255,255,255,0.15)" style={{ marginBottom: 8 }} />
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: 0 }}>No results for <strong style={{ color: 'rgba(255,255,255,0.5)' }}>{search}</strong></p>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ padding: '8px 14px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          Reservations
+                        </span>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>{matchedResults.length} found</span>
+                      </div>
+                      {matchedResults.map(r => (
+                        <button
+                          key={r.id}
+                          onClick={() => handleResultClick(r)}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 14px', background: 'none', border: 'none',
+                            cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            transition: 'background 0.08s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.08)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                          {/* Ref badge */}
+                          <div style={{
+                            flexShrink: 0, background: 'rgba(255,255,255,0.06)',
+                            borderRadius: 3, padding: '3px 7px',
+                            fontFamily: 'monospace', fontSize: 11, color: '#C9A84C', fontWeight: 600,
+                          }}>
+                            {r.reference}
+                          </div>
+
+                          {/* Details */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: '#E8E3DB', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.clientName}
+                            </p>
+                            <p style={{ margin: '1px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.destinations.join(' · ')} {r.arrivalDate ? `· ${r.arrivalDate}` : ''}
+                            </p>
+                          </div>
+
+                          {/* Status chip */}
+                          <span style={{
+                            flexShrink: 0, fontSize: 10, fontWeight: 600,
+                            color: STATUS_COLOR[r.status] ?? '#6B7280',
+                            background: `${STATUS_COLOR[r.status] ?? '#6B7280'}18`,
+                            borderRadius: 3, padding: '2px 6px',
+                          }}>
+                            {STATUS_LABEL[r.status] ?? r.status}
+                          </span>
+
+                          <ArrowRight size={11} color="rgba(255,255,255,0.2)" style={{ flexShrink: 0 }} />
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Recent searches — shown when no query */}
+              {q.length === 0 && recentSearches.length > 0 && (
+                <>
+                  <div style={{ padding: '8px 14px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Recent Searches
+                    </span>
+                    <button
+                      onClick={handleClearRecent}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'inherit', padding: 0, transition: 'color 0.1s' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#C9A84C')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {recentSearches.map(term => (
+                    <button
+                      key={term}
+                      onClick={() => handleRecentClick(term)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 14px', background: 'none', border: 'none',
+                        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        transition: 'background 0.08s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <Clock size={11} color="rgba(255,255,255,0.2)" style={{ flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace' }}>{term}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Empty state when no query and no recent */}
+              {q.length === 0 && recentSearches.length === 0 && (
+                <div style={{ padding: '18px 16px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>Type a reference number, name, or destination</p>
+                </div>
+              )}
+
+              {/* Footer hint */}
+              <div style={{ padding: '7px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 12 }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>↵ open first</span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Esc close</span>
+              </div>
+            </div>
           )}
         </div>
 

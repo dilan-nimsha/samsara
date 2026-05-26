@@ -135,32 +135,32 @@ const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: stri
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 const sectionStyle: React.CSSProperties = {
-  background: T.surface, border: `1px solid ${T.border}`, borderRadius: 3, marginBottom: 5, overflow: 'hidden',
+  background: T.surface, border: `1px solid ${T.border}`, borderRadius: 3, marginBottom: 3, overflow: 'hidden',
 };
 
 const sectionHeadStyle: React.CSSProperties = {
   background: T.headBg, borderBottom: `1px solid ${T.border}`,
-  padding: '4px 10px', fontSize: 12, fontWeight: 700, color: T.headColor,
+  padding: '3px 10px', fontSize: 11, fontWeight: 700, color: T.headColor,
   letterSpacing: '0.01em',
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
 };
 
 const rowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center',
-  borderBottom: `1px solid ${T.rowBdr}`, minHeight: 26,
+  borderBottom: `1px solid ${T.rowBdr}`, minHeight: 21,
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12, color: T.label, width: 122, flexShrink: 0,
-  padding: '3px 8px 3px 10px', display: 'flex', alignItems: 'center', gap: 3,
-  lineHeight: 1.35,
+  fontSize: 11.5, color: T.label, width: 108, flexShrink: 0,
+  padding: '2px 8px 2px 10px', display: 'flex', alignItems: 'center', gap: 3,
+  lineHeight: 1.3,
 };
 
 const editInp: React.CSSProperties = {
-  fontSize: 12, color: T.text, flex: 1,
-  padding: '3px 6px', border: `1px solid ${T.inputBorder}`,
+  fontSize: 11.5, color: T.text, flex: 1,
+  padding: '2px 6px', border: `1px solid ${T.inputBorder}`,
   borderRadius: 2, background: T.inputBg, outline: 'none',
-  fontFamily: 'inherit', height: 24,
+  fontFamily: 'inherit', height: 22,
   transition: 'border-color 0.12s',
   minWidth: 0,
 };
@@ -188,7 +188,7 @@ function IRow({ label, required, children }: { label: string; required?: boolean
         {required && <span style={{ color: T.danger }}>*</span>}
         {label}
       </div>
-      <div style={{ flex: 1, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <div style={{ flex: 1, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
         {children}
       </div>
     </div>
@@ -306,8 +306,8 @@ function CollapseBtn({ expanded, onClick }: { expanded: boolean; onClick: () => 
 function SubGroup({ label }: { label: string }) {
   return (
     <div style={{
-      padding: '3px 10px',
-      fontSize: 10, fontWeight: 700, color: '#999999',
+      padding: '1px 10px',
+      fontSize: 9, fontWeight: 700, color: '#999999',
       letterSpacing: '0.07em', textTransform: 'uppercase',
       background: '#F8F8F8', borderBottom: `1px solid ${T.border2}`,
       borderTop: `1px solid ${T.border2}`,
@@ -325,7 +325,7 @@ function MarginLine({ cost, sell, cur }: { cost: number; sell: number; cur: Curr
   const pct    = Math.round((margin / sell) * 100);
   return (
     <div style={{
-      padding: '4px 10px', background: '#F8FFF8',
+      padding: '2px 10px', background: '#F8FFF8',
       borderTop: `1px solid ${T.rowBdr}`,
       fontSize: 11, color: margin >= 0 ? '#059669' : T.danger,
       fontVariantNumeric: 'tabular-nums',
@@ -343,7 +343,25 @@ function MarginLine({ cost, sell, cur }: { cost: number; sell: number; cur: Curr
 export default function ItineraryBuilderPage() {
   const { id }  = useParams<{ id: string }>();
   const router  = useRouter();
-  const r       = mockReservations.find(x => x.id === id);
+  const mockR   = mockReservations.find(x => x.id === id);
+
+  // Purchased / web reservations are real Supabase rows (not in mock data),
+  // so fall back to a live fetch — otherwise the page shows "not found".
+  const [liveR,        setLiveR]        = useState<typeof mockR | null>(null);
+  const [fetchingLive, setFetchingLive] = useState(!mockR);
+
+  useEffect(() => {
+    if (mockR) return;
+    fetch(`/api/bookings/${id}`)
+      .then(res => res.json())
+      .then((data: { success: boolean; reservation?: typeof mockR }) => {
+        if (data.success && data.reservation) setLiveR(data.reservation);
+      })
+      .catch(() => {})
+      .finally(() => setFetchingLive(false));
+  }, [id, mockR]);
+
+  const r       = mockR ?? liveR;
   const nights  = r ? tripDuration(r.arrival_date, r.departure_date) : 7;
   const cur: Currency = r?.currency ?? 'USD';
 
@@ -418,8 +436,7 @@ export default function ItineraryBuilderPage() {
     });
 
     setActiveDay(d => Math.min(d, expectedNights - 1));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount — reconciles with any date changes made on the reservation page
+  }, [r]); // re-run when the reservation resolves (mock on mount, or live after fetch) and on date changes
 
   // ── Cost summaries ─────────────────────────────────────────────────────────
 
@@ -515,7 +532,7 @@ export default function ItineraryBuilderPage() {
 
   if (!r) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 48px)', color: '#BBBBBB', fontSize: 13 }}>
-      Reservation not found.
+      {fetchingLive ? 'Loading reservation…' : 'Reservation not found.'}
     </div>
   );
 
@@ -664,28 +681,28 @@ export default function ItineraryBuilderPage() {
         </div>
 
         {/* ── Day editor ── */}
-        <div style={{ overflowY: 'auto', padding: '8px 10px' }}>
+        <div style={{ overflowY: 'auto', padding: '6px 8px' }}>
 
           {/* ── Day header card ── */}
           <div style={sectionStyle}>
             {/* Card header: day badge + date + cost summary */}
-            <div style={{ ...sectionHeadStyle, background: '#EEF4FF', minHeight: 36 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ ...sectionHeadStyle, background: '#EEF4FF', minHeight: 26 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <span style={{
-                  width: 24, height: 24, borderRadius: '50%',
+                  width: 19, height: 19, borderRadius: '50%',
                   background: T.primary, color: '#fff',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  fontSize: 10, fontWeight: 700, flexShrink: 0,
                 }}>
                   {day.dayNumber}
                 </span>
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
                     {day.date
                       ? new Date(day.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
                       : `Day ${day.dayNumber}`}
                   </span>
-                  <span style={{ fontSize: 10, color: T.muted, lineHeight: 1.2 }}>Day {day.dayNumber} of {days.length}</span>
+                  <span style={{ fontSize: 10, color: T.muted }}>Day {day.dayNumber} of {days.length}</span>
                 </span>
               </span>
               {dayC.sell > 0 && (
@@ -715,19 +732,19 @@ export default function ItineraryBuilderPage() {
               />
             </IRow>
             {/* Description */}
-            <div style={{ display: 'flex', minHeight: 32, borderBottom: `1px solid ${T.rowBdr}` }}>
-              <div style={{ ...labelStyle, alignSelf: 'flex-start', paddingTop: 7 }}>Description</div>
-              <div style={{ flex: 1, padding: '5px 8px', minWidth: 0 }}>
+            <div style={{ display: 'flex', minHeight: 26, borderBottom: `1px solid ${T.rowBdr}` }}>
+              <div style={{ ...labelStyle, alignSelf: 'flex-start', paddingTop: 5 }}>Description</div>
+              <div style={{ flex: 1, padding: '3px 8px', minWidth: 0 }}>
                 <textarea
                   value={day.description}
                   onChange={e => updateDay(activeDay, 'description', e.target.value)}
                   placeholder="Describe the day experience for the client…"
                   rows={2}
                   style={{
-                    width: '100%', resize: 'vertical', minHeight: 46, maxHeight: 120,
+                    width: '100%', resize: 'vertical', minHeight: 32, maxHeight: 120,
                     border: `1px solid ${T.inputBorder}`, borderRadius: 2,
-                    fontSize: 12, color: T.text, lineHeight: 1.5,
-                    padding: '4px 6px', fontFamily: 'inherit',
+                    fontSize: 11.5, color: T.text, lineHeight: 1.4,
+                    padding: '3px 6px', fontFamily: 'inherit',
                     background: T.inputBg, outline: 'none',
                     transition: 'border-color 0.12s', display: 'block', boxSizing: 'border-box',
                   }}
@@ -815,7 +832,7 @@ export default function ItineraryBuilderPage() {
             />
 
             {day.transfers.length === 0 && (
-              <div style={{ padding: '12px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Car size={13} strokeWidth={1.5} color="#CCCCCC" />
                 <span style={{ fontSize: 12, color: '#BBBBBB', fontStyle: 'italic' }}>No transfers added for this day.</span>
               </div>
@@ -826,7 +843,7 @@ export default function ItineraryBuilderPage() {
                 {/* Transfer row header */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '5px 10px 5px 0',
+                  padding: '3px 10px 3px 0',
                   background: '#F5F5F5',
                   borderLeft: `3px solid #059669`,
                   borderBottom: tx.expanded ? `1px solid ${T.border}` : 'none',
@@ -922,7 +939,7 @@ export default function ItineraryBuilderPage() {
             />
 
             {day.activities.length === 0 && (
-              <div style={{ padding: '12px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Compass size={13} strokeWidth={1.5} color="#CCCCCC" />
                 <span style={{ fontSize: 12, color: '#BBBBBB', fontStyle: 'italic' }}>No activities added for this day.</span>
               </div>
@@ -933,7 +950,7 @@ export default function ItineraryBuilderPage() {
                 {/* Activity row header */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '5px 10px 5px 0',
+                  padding: '3px 10px 3px 0',
                   background: '#F5F5F5',
                   borderLeft: `3px solid #D97706`,
                   borderBottom: act.expanded ? `1px solid ${T.border}` : 'none',
@@ -1018,7 +1035,7 @@ export default function ItineraryBuilderPage() {
             <SHead icon={<Utensils size={12} strokeWidth={2} />} label="Meals &amp; Operations" />
 
             <SubGroup label="Meals Included" />
-            <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 20, borderBottom: `1px solid ${T.rowBdr}` }}>
+            <div style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 20, borderBottom: `1px solid ${T.rowBdr}` }}>
               {['Breakfast', 'Lunch', 'Dinner'].map(meal => (
                 <label key={meal} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: T.label }}>
                   <input
@@ -1042,7 +1059,7 @@ export default function ItineraryBuilderPage() {
           </div>
 
           {/* ── Prev / Next ── */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 14px' }}>
             <TBtn
               label="← Previous Day"
               onClick={() => setActiveDay(i => i - 1)}

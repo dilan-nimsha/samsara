@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockPartners } from '@/lib/mock-data';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import type { Partner } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import {
@@ -93,16 +93,53 @@ export default function PartnersPage() {
   const [dir,          setDir]          = useState<SortDir>('asc');
   const [refreshing,   setRefreshing]   = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [saving,       setSaving]       = useState(false);
   const [addForm,      setAddForm]      = useState({ company_name: '', contact_person: '', email: '', phone: '', country: '', commission_rate: '' });
 
-  function handleAddPartner() {
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [loading,  setLoading]  = useState(true);
+
+  const fetchPartners = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/partners');
+      const data = await res.json() as { success: boolean; partners?: Partner[]; error?: string };
+      if (data.success) setPartners(data.partners ?? []);
+      else toast.error(data.error ?? 'Failed to load partners');
+    } catch {
+      toast.error('Failed to load partners');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchPartners(); }, [fetchPartners]);
+
+  async function handleAddPartner() {
     if (!addForm.company_name.trim())    { toast.error('Company name is required'); return; }
     if (!addForm.contact_person.trim())  { toast.error('Contact person is required'); return; }
     if (!addForm.email.trim())           { toast.error('Email is required'); return; }
     if (!addForm.country.trim())         { toast.error('Country is required'); return; }
-    setShowAddModal(false);
-    setAddForm({ company_name: '', contact_person: '', email: '', phone: '', country: '', commission_rate: '' });
-    toast.success(`Partner "${addForm.company_name}" added successfully`);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Failed to add partner');
+      const name = addForm.company_name;
+      setShowAddModal(false);
+      setAddForm({ company_name: '', contact_person: '', email: '', phone: '', country: '', commission_rate: '' });
+      toast.success(`Partner "${name}" added successfully`);
+      await fetchPartners();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add partner');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleSort(f: SortField) {
@@ -111,13 +148,13 @@ export default function PartnersPage() {
   }
 
   const tabCounts = useMemo<Record<TabKey, number>>(() => ({
-    all:      mockPartners.length,
-    active:   mockPartners.filter(p => p.is_active).length,
-    inactive: mockPartners.filter(p => !p.is_active).length,
-  }), []);
+    all:      partners.length,
+    active:   partners.filter(p => p.is_active).length,
+    inactive: partners.filter(p => !p.is_active).length,
+  }), [partners]);
 
   const rows = useMemo(() => {
-    let list = [...mockPartners];
+    let list = [...partners];
     if (tab === 'active')   list = list.filter(p => p.is_active);
     if (tab === 'inactive') list = list.filter(p => !p.is_active);
     if (filter.trim()) {
@@ -142,12 +179,12 @@ export default function PartnersPage() {
       return 0;
     });
     return list;
-  }, [tab, filter, sort, dir]);
+  }, [partners, tab, filter, sort, dir]);
 
   function handleRefresh() {
     if (refreshing) return;
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    void fetchPartners();
   }
 
   const totalEarned   = rows.reduce((s, p) => s + p.total_commission_earned, 0);
@@ -280,7 +317,7 @@ export default function PartnersPage() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={10} style={{ padding: '32px', textAlign: 'center', color: '#AAAAAA', fontSize: 13 }}>
-                  No partners match your filters.
+                  {loading ? 'Loading partners…' : partners.length === 0 ? 'No partners yet. Click "Add Partner" to create one.' : 'No partners match your filters.'}
                 </td>
               </tr>
             )}
@@ -366,7 +403,7 @@ export default function PartnersPage() {
             padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
-              {rows.length} of {mockPartners.length} partners
+              {rows.length} of {partners.length} partners
             </span>
             <span style={{ fontSize: 11, color: '#AAAAAA' }}>
               {totalBookings} bookings · {formatCurrency(totalEarned, 'GBP')} commission earned
@@ -400,7 +437,7 @@ export default function PartnersPage() {
                 <div key={key}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: '#555555', display: 'block', marginBottom: 4 }}>{label}</label>
                   <input
-                    value={(addForm as any)[key]}
+                    value={addForm[key as keyof typeof addForm]}
                     onChange={e => setAddForm(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
                     style={{
@@ -416,8 +453,8 @@ export default function PartnersPage() {
               <button onClick={() => setShowAddModal(false)} style={{ padding: '7px 16px', border: '1px solid #E0E0E0', borderRadius: 5, background: 'none', fontSize: 12, fontWeight: 500, color: '#555555', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button onClick={handleAddPartner} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Add Partner
+              <button onClick={handleAddPartner} disabled={saving} style={{ padding: '7px 20px', border: 'none', borderRadius: 5, background: saving ? '#888888' : '#111111', fontSize: 12, fontWeight: 600, color: '#ffffff', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                {saving ? 'Saving…' : 'Add Partner'}
               </button>
             </div>
           </div>
