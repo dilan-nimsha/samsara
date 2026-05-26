@@ -186,21 +186,28 @@ export default function Home() {
         }
 
         .about-description {
-          font-family: 'Inter', sans-serif;
-          font-size: var(--text-base);
-          font-weight: 200;
-          line-height: 1.8;
-          color: rgba(255, 255, 255, 0.85);
-          margin-bottom: 2.5rem;
-          max-width: 600px;
+          font-family: 'TT Fors', 'Inter', sans-serif;
+          font-size: var(--text-base);          /* φ⁰ — body anchor */
+          font-weight: 300;
+          line-height: 1.618;                    /* φ — golden leading */
+          color: rgba(255, 255, 255, 0.82);
+          margin-bottom: 1.618rem;               /* φ rhythm between paragraphs */
+          max-width: 34rem;                      /* refined golden measure (~60ch) */
           text-align: center;
           animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+        /* Golden-ratio hierarchy for the hero title (scoped to the about section) */
+        .about-content .section-title {
+          line-height: 1.15;
+          letter-spacing: 0.06em;
+          margin-bottom: 2.618rem;               /* φ² — gap below the title */
         }
 
         .about-cta-group {
           display: flex;
-          gap: 1.5rem;
+          gap: 1.618rem;                         /* φ — gap between buttons */
           justify-content: center;
+          margin-top: 2.618rem;                  /* φ² — lift above the CTA (φ³ total with para gap) */
           animation: fadeInUp 0.8s ease-out 0.3s both;
         }
 
@@ -570,11 +577,17 @@ export default function Home() {
         <div className="about-content">
    
           <h1 className="section-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
-            More Than a <em>Travel Company</em>
+            Start with a feeling, <em>end with a story.</em>
           </h1>
-          
+
           <p className="about-description">
-            Samsara exists to reconnect you with what matters most. In a world of endless distractions, we craft journeys that slow you down, open your senses, and return you to yourself. Every destination. Every detail. Every moment is designed with intention.
+            The world is full of wonder — yet we&apos;re drowning in choice. See this, do that, don&apos;t miss the other. And no one ever asks the question that matters most: how do you want to feel?
+          </p>
+          <p className="about-description">
+            That&apos;s not us. Samsara is a tailor-made luxury travel house, built on a single belief — that the finest journeys begin with a feeling, not a checklist. Couple, family, or solo, we shape every mile of Sri Lanka around you.
+          </p>
+          <p className="about-description">
+            So let&apos;s begin. Let&apos;s turn a feeling into a story worth telling.
           </p>
 
           <div className="about-cta-group">

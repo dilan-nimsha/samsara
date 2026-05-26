@@ -53,7 +53,10 @@
       "Bash(grep -v \"^\\\\.$\")",
       "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" --max-time 90 http://localhost:3000/feeling-engine)",
       "Bash(curl -s --max-time 20 http://localhost:3000/feeling-engine)",
-      "Bash(grep -iE \"\\\\.\\(jpg|jpeg|png|webp\\)$\")"
+      "Bash(grep -iE \"\\\\.\\(jpg|jpeg|png|webp\\)$\")",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" --max-time 90 http://localhost:3000/)",
+      "Bash(curl -s --max-time 20 http://localhost:3000/)",
+      "Bash(git add *)"
     ]
   }
 }
